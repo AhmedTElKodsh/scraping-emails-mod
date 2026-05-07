@@ -1,0 +1,22 @@
+[
+  {
+    "encoded": "007465737440746573742e636f6d",
+    "expected": "test@test.com"
+  },
+  {
+    "encoded": "7f1c10110b1e1c0b3f1c10120f1e1106511a18",
+    "expected": "contact@company.eg"
+  },
+  {
+    "encoded": "2a43444c456a485f5943444f595904494547",
+    "expected": "info@business.com"
+  },
+  {
+    "encoded": "553431383c3b15213026217b3a2732",
+    "expected": "admin@test.org"
+  },
+  {
+    "encoded": "3340525f56407340475c41561d5654",
+    "expected": "sales@store.eg"
+  }
+]
