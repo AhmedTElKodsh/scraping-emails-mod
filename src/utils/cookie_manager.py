@@ -7,18 +7,18 @@ Convert between cloudscraper cookie dict and curl_cffi cookie formats.
 
 import json
 import os
-from typing import Optional
+from typing import Any, cast
 
 
-def extract_cookies_from_cloudscraper(scraper) -> dict:
+def extract_cookies_from_cloudscraper(scraper: Any) -> dict[str, Any]:
     """
     Extract cookies from a cloudscraper session.
     Returns dict suitable for curl_cffi or requests.
     """
-    return scraper.cookies.get_dict()
+    return cast(dict[str, Any], scraper.cookies.get_dict())
 
 
-def get_cookie_string(scraper) -> tuple[str, str]:
+def get_cookie_string(scraper: Any) -> tuple[str, str]:
     """
     Get (cookie_string, user_agent) from cloudscraper, ready for HTTP headers.
     Matches cloudscraper's built-in get_cookie_string() and get_tokens().
@@ -36,49 +36,49 @@ def get_cookie_string(scraper) -> tuple[str, str]:
         return cookie_str, ua
 
 
-def get_tokens(scraper) -> dict:
+def get_tokens(scraper: Any) -> dict[str, Any]:
     """
     Get Cloudflare tokens (cf_clearance, __cfduid) from cloudscraper session.
     Returns dict with token values.
     """
     try:
-        return scraper.get_tokens()
+        return cast(dict[str, Any], scraper.get_tokens())
     except AttributeError:
         cookies = scraper.cookies.get_dict()
         return {k: v for k, v in cookies.items() if k in ("cf_clearance", "__cfduid", "__cf_bm")}
 
 
-def save_cookies(cookies: dict, filepath: str) -> None:
+def save_cookies(cookies: dict[str, Any], filepath: str) -> None:
     """Save cookies dict to JSON file."""
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, "w") as f:
         json.dump(cookies, f, indent=2)
 
 
-def load_cookies(filepath: str) -> dict:
+def load_cookies(filepath: str) -> dict[str, Any]:
     """Load cookies dict from JSON file."""
     try:
-        with open(filepath, "r") as f:
-            return json.load(f)
+        with open(filepath) as f:
+            return cast(dict[str, Any], json.load(f))
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 
-def cookies_to_header(cookies: dict) -> str:
+def cookies_to_header(cookies: dict[str, Any]) -> str:
     """Convert cookies dict to Cookie header string."""
     return "; ".join(f"{k}={v}" for k, v in cookies.items())
 
 
-def inject_cookies_to_curl_cffi(curl_session, cookies: dict) -> None:
+def inject_cookies_to_curl_cffi(curl_session: Any, cookies: dict[str, Any]) -> None:
     """
     Inject cookies into a curl_cffi session.
-    Usage: from curl_cffi import requests; s = requests.Session(); inject_cookies_to_curl_cffi(s, cookies)
+    Usage: create a curl_cffi session, then call this with a cookies dict.
     """
     for name, value in cookies.items():
         curl_session.cookies.set(name, value)
 
 
-def save_session(scraper, filepath: str) -> None:
+def save_session(scraper: Any, filepath: str) -> None:
     """
     Save a cloudscraper session (cookies + user-agent) to file.
     Format: {"cookies": {...}, "user_agent": "..."}
@@ -91,11 +91,11 @@ def save_session(scraper, filepath: str) -> None:
         json.dump(data, f, indent=2)
 
 
-def load_session(filepath: str) -> dict:
-    """Load session data from file. Returns {"cookies": {...}, "user_agent": "..."} or empty dict."""
+def load_session(filepath: str) -> dict[str, Any]:
+    """Load session data from file."""
     try:
-        with open(filepath, "r") as f:
-            return json.load(f)
+        with open(filepath) as f:
+            return cast(dict[str, Any], json.load(f))
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 

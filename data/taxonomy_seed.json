@@ -1,0 +1,17 @@
+{
+  "categories": [
+    {"slug": "restaurants", "name": "Restaurants"},
+    {"slug": "hotels", "name": "Hotels"},
+    {"slug": "hospitals", "name": "Hospitals"},
+    {"slug": "schools", "name": "Schools"},
+    {"slug": "automotive", "name": "Automotive"}
+  ],
+  "locations": [
+    {"slug": "cairo", "name": "Cairo", "type": "city"},
+    {"slug": "giza", "name": "Giza", "type": "city"},
+    {"slug": "alexandria", "name": "Alexandria", "type": "city"},
+    {"slug": "maadi", "name": "Maadi", "type": "area", "parent_slug": "cairo"},
+    {"slug": "nasr-city", "name": "Nasr City", "type": "area", "parent_slug": "cairo"},
+    {"slug": "new-maadi", "name": "New Maadi", "type": "district", "parent_slug": "maadi"}
+  ]
+}

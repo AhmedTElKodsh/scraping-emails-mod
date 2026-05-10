@@ -8,3 +8,18 @@ output/
 *.cassette
 .mypy_cache/
 .ruff_cache/
+
+# Runtime data and local tool state
+data/*.sqlite*
+data/*.log
+*.png
+.agent/
+.agents/
+.bob/
+.claude/
+.cline/
+.codex/
+.kiro/
+.playwright-mcp/
+.trae/
+_bmad-output/

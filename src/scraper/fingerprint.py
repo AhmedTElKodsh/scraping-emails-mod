@@ -1,4 +1,15 @@
+import random
+
 from scraper.models import FingerprintProfile
+
+# Randomize viewport to reduce fingerprinting
+_VIEWPORTS = [
+    (1920, 1080),
+    (1366, 768),
+    (1536, 864),
+    (1440, 900),
+    (1280, 720),
+]
 
 _CHROME_136 = FingerprintProfile(
     impersonate="chrome136",
@@ -15,4 +26,13 @@ _CHROME_136 = FingerprintProfile(
 
 
 def get_profile() -> FingerprintProfile:
-    return _CHROME_136
+    """Get fingerprint profile with randomized viewport to reduce bot detection."""
+    width, height = random.choice(_VIEWPORTS)
+    return FingerprintProfile(
+        impersonate=_CHROME_136.impersonate,
+        user_agent=_CHROME_136.user_agent,
+        accept_language=_CHROME_136.accept_language,
+        sec_ch_ua=_CHROME_136.sec_ch_ua,
+        viewport_width=width,
+        viewport_height=height,
+    )

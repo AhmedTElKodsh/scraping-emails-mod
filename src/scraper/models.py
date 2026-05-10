@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class FingerprintProfile(BaseModel):
@@ -10,15 +10,23 @@ class FingerprintProfile(BaseModel):
     viewport_height: int
 
 
+class Facet(BaseModel):
+    type: str
+    slug: str
+    name: str = ""
+
+
 class ScrapeResult(BaseModel):
     url: str
     business_name: str = ""
     category: str = ""
     governorate: str = ""
     phone: str = ""
-    emails: list[str] = []
+    emails: list[str] = Field(default_factory=list)
     website: str = ""
+    facebook_url: str = ""
     address: str = ""
     source_tier: int = 0
     scraped_at: str = ""
     raw_html_hash: str = ""
+    facets: list[Facet] = Field(default_factory=list)

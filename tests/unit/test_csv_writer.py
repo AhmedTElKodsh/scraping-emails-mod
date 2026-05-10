@@ -1,8 +1,6 @@
 import csv
 from pathlib import Path
 
-import pytest
-
 from scraper.models import ScrapeResult
 
 
@@ -34,42 +32,47 @@ def test_creates_file_with_header(tmp_path: Path) -> None:
     assert "business_name" in rows[0]
 
 
-def test_dedup_same_email_same_run(tmp_path: Path) -> None:
+def test_dedup_same_url_same_run(tmp_path: Path) -> None:
     from scraper.csv_writer import CSVWriter
 
     path = tmp_path / "out.csv"
     writer = CSVWriter(path)
-    writer.write(make_result(emails=["dup@example.com"]))
-    writer.write(make_result(emails=["dup@example.com"]))
+    writer.write(make_result(url="https://example.com/biz/1", emails=["a@a.com"]))
+    writer.write(make_result(url="https://example.com/biz/1", emails=["b@b.com"]))
 
     rows = list(csv.DictReader(path.read_text(encoding="utf-8").splitlines()))
     assert len(rows) == 1
 
 
-def test_dedup_case_insensitive(tmp_path: Path) -> None:
+def test_dedup_email_across_urls_case_insensitive(tmp_path: Path) -> None:
     from scraper.csv_writer import CSVWriter
 
     path = tmp_path / "out.csv"
     writer = CSVWriter(path)
-    writer.write(make_result(emails=["Info@Example.COM"]))
-    writer.write(make_result(emails=["info@example.com"]))
-
+    writer.write(make_result(url="https://example.com/biz/1", emails=["Info@Example.COM"]))
+    written = writer.write(
+        make_result(url="https://example.com/biz/2", emails=["info@example.com"])
+    )
+    assert written == 1
     rows = list(csv.DictReader(path.read_text(encoding="utf-8").splitlines()))
-    assert len(rows) == 1
+    assert len(rows) == 2
+    assert rows[1]["email"] == ""
 
 
-def test_resume_loads_existing_emails(tmp_path: Path) -> None:
+def test_resume_dedups_url(tmp_path: Path) -> None:
     from scraper.csv_writer import CSVWriter
 
     path = tmp_path / "out.csv"
     w1 = CSVWriter(path)
-    w1.write(make_result(emails=["first@example.com"]))
+    w1.write(make_result(url="https://example.com/biz/1", emails=["first@example.com"]))
 
     w2 = CSVWriter(path)
-    written = w2.write(make_result(emails=["first@example.com"]))
+    written = w2.write(make_result(url="https://example.com/biz/1", emails=["first@example.com"]))
     assert written == 0
 
-    new_written = w2.write(make_result(emails=["second@example.com"]))
+    new_written = w2.write(
+        make_result(url="https://example.com/biz/2", emails=["second@example.com"])
+    )
     assert new_written == 1
 
 
@@ -77,11 +80,11 @@ def test_no_duplicate_header_on_append(tmp_path: Path) -> None:
     from scraper.csv_writer import CSVWriter
 
     path = tmp_path / "out.csv"
-    CSVWriter(path).write(make_result(emails=["a@a.com"]))
-    CSVWriter(path).write(make_result(emails=["b@b.com"]))
+    CSVWriter(path).write(make_result(url="https://example.com/biz/1", emails=["a@a.com"]))
+    CSVWriter(path).write(make_result(url="https://example.com/biz/2", emails=["b@b.com"]))
 
-    lines = [l for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
-    header_count = sum(1 for l in lines if l.startswith("business_name"))
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    header_count = sum(1 for line in lines if line.startswith("business_name"))
     assert header_count == 1
 
 

@@ -7,7 +7,6 @@ and randomized delays (2-8 seconds) to mimic human behavior.
 
 import random
 import time
-from typing import Optional
 
 
 class RateLimiter:
@@ -35,7 +34,7 @@ class RateLimiter:
         }
         self.last_request: dict[str, float] = {}  # domain -> timestamp
 
-    def human_delay(self, domain: Optional[str] = None) -> float:
+    def human_delay(self, domain: str | None = None) -> float:
         """
         Sleep for a random delay between min_delay and max_delay.
         Returns actual delay used.

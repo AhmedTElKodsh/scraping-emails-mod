@@ -9,7 +9,6 @@ import json
 import os
 import random
 import time
-from typing import Optional
 
 
 class ProxyPool:
@@ -21,14 +20,14 @@ class ProxyPool:
             "residential": [],
             "mobile": [],
         }
-        self.sticky_map: dict[str, tuple[str, int, float]] = {}  # key -> (proxy, requests_used, expiry)
+        self.sticky_map: dict[str, tuple[str, int, float]] = {}
         self.sticky_requests = 10  # requests per sticky session
         self.sticky_ttl = 300  # seconds
 
     @classmethod
     def from_file(cls, filepath: str) -> "ProxyPool":
-        """Load proxies from JSON file: {"residential": [...], "mobile": [...], "datacenter": [...]}"""
-        with open(filepath, "r") as f:
+        """Load proxies from a JSON file grouped by pool type."""
+        with open(filepath) as f:
             data = json.load(f)
         return cls(data)
 
@@ -47,7 +46,11 @@ class ProxyPool:
             self.pools[pool_type] = []
         self.pools[pool_type].append(proxy)
 
-    def get_proxy(self, pool_type: str = "residential", sticky_key: str | None = None) -> str | None:
+    def get_proxy(
+        self,
+        pool_type: str = "residential",
+        sticky_key: str | None = None,
+    ) -> str | None:
         """
         Get proxy from pool. If sticky_key provided, reuse same proxy for N requests.
         sticky_key can be a domain, session ID, etc.

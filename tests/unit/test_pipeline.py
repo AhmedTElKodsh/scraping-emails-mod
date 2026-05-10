@@ -6,7 +6,7 @@ from scraper.http_client import BaseClient, Response
 class OkClient(BaseClient):
     tier = 1
 
-    def get(self, url: str, proxy: str | None = None) -> Response:
+    def get(self, url: str, proxy: str | None = None, referer: str | None = None) -> Response:
         return Response(status_code=200, text="<html>content</html>", headers={}, tier=self.tier)
 
 
@@ -17,7 +17,7 @@ class FailClient(BaseClient):
         self._status = status
         self._body = body
 
-    def get(self, url: str, proxy: str | None = None) -> Response:
+    def get(self, url: str, proxy: str | None = None, referer: str | None = None) -> Response:
         return Response(status_code=self._status, text=self._body, headers={}, tier=1)
 
 
@@ -27,7 +27,7 @@ class CountClient(BaseClient):
     def __init__(self) -> None:
         self.calls = 0
 
-    def get(self, url: str, proxy: str | None = None) -> Response:
+    def get(self, url: str, proxy: str | None = None, referer: str | None = None) -> Response:
         self.calls += 1
         return Response(status_code=403, text="just a moment", headers={}, tier=1)
 

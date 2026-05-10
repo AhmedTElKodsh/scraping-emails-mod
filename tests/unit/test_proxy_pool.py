@@ -1,4 +1,3 @@
-import pytest
 
 
 def always_alive(proxy_url: str) -> bool:
@@ -41,7 +40,7 @@ def test_sticky_session_same_proxy_for_n_requests() -> None:
 def test_sticky_session_rotates_after_count() -> None:
     proxies = ["http://p1:8080", "http://p2:8080", "http://p3:8080"]
     pool = make_pool(proxies, sticky_count=3)
-    first_proxy = pool.get()
+    pool.get()
     pool.get()
     pool.get()
     pool._current_uses = pool._sticky_count  # force rotation on next get

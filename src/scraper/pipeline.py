@@ -15,15 +15,17 @@ class BlockedError(Exception):
 
 class Pipeline:
     def __init__(self, tiers: list[BaseClient], max_retries: int = 3) -> None:
+        if not tiers:
+            raise ValueError("Pipeline requires at least one tier")
         self._tiers = tiers
         self._max_retries = max_retries
 
-    def fetch(self, url: str, proxy: str | None = None) -> Response:
+    def fetch(self, url: str, proxy: str | None = None, referer: str | None = None) -> Response:
         for client in self._tiers:
             tier_n = client.tier
             for attempt in range(self._max_retries):
                 log.info("fetch_attempt", url=url, tier=tier_n, attempt=attempt + 1)
-                resp = client.get(url, proxy=proxy)
+                resp = client.get(url, proxy=proxy, referer=referer)
                 if not resp.is_challenge():
                     log.info("fetch_success", url=url, tier=tier_n)
                     return resp

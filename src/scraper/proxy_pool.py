@@ -1,6 +1,6 @@
 import random
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
@@ -65,7 +65,11 @@ class ProxyPool:
         for p in self._pool:
             if p.url == proxy_url:
                 p.failures += 1
-                if p.failures >= self._max_failures and self._current and self._current.url == proxy_url:
+                if (
+                    p.failures >= self._max_failures
+                    and self._current
+                    and self._current.url == proxy_url
+                ):
                     self._current = None
                 break
 
