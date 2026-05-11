@@ -94,6 +94,26 @@ def _selected_slugs(label_to_slug: dict[str, str], selected: list[str]) -> list[
     return [label_to_slug[label] for label in selected if label in label_to_slug]
 
 
+def _prune_multiselect_state(key: str, options: list[str]) -> None:
+    valid_options = set(options)
+    selected = st.session_state.get(key, [])
+    if not isinstance(selected, list):
+        st.session_state[key] = []
+        return
+    st.session_state[key] = [value for value in selected if value in valid_options]
+
+
+def _sidebar_multiselect(
+    label: str,
+    options: list[str],
+    *,
+    key: str,
+    disabled: bool = False,
+) -> list[str]:
+    _prune_multiselect_state(key, options)
+    return st.sidebar.multiselect(label, options, key=key, disabled=disabled)
+
+
 @st.cache_resource
 def _crawl_runtime() -> dict[str, Any]:
     return {
@@ -159,6 +179,9 @@ def _crawl_runtime_snapshot() -> dict[str, Any]:
 st.sidebar.title("Filters")
 
 if SEED_WAS_LOADED:
+    st.session_state["starter_taxonomy_loaded"] = True
+
+if st.session_state.get("starter_taxonomy_loaded"):
     st.sidebar.success("Loaded starter taxonomy for this fresh deployment.")
 
 filter_options = load_crawl_target_options(DB_PATH)
@@ -167,20 +190,39 @@ brand_options = _option_labels(filter_options["brands"])
 keyword_options = _option_labels(filter_options["keywords"])
 city_options = _option_labels(filter_options["cities"])
 
-selected_categories = st.sidebar.multiselect("Categories", list(category_options.keys()))
-selected_brands = st.sidebar.multiselect("Brands", list(brand_options.keys()))
-selected_keywords = st.sidebar.multiselect("Keywords", list(keyword_options.keys()))
-selected_cities = st.sidebar.multiselect("Cities", list(city_options.keys()))
+selected_categories = _sidebar_multiselect(
+    "Categories",
+    list(category_options.keys()),
+    key="selected_categories",
+)
+selected_brands = _sidebar_multiselect(
+    "Brands",
+    list(brand_options.keys()),
+    key="selected_brands",
+    disabled=not brand_options,
+)
+selected_keywords = _sidebar_multiselect(
+    "Keywords",
+    list(keyword_options.keys()),
+    key="selected_keywords",
+    disabled=not keyword_options,
+)
+selected_cities = _sidebar_multiselect(
+    "Cities",
+    list(city_options.keys()),
+    key="selected_cities",
+)
 
 selected_city_slugs = _selected_slugs(city_options, selected_cities)
 
 area_options: dict[str, str] = {}
 if len(selected_city_slugs) == 1:
     area_options = _option_labels(load_facet_options(DB_PATH, "area", selected_city_slugs[0]))
-selected_areas = (
-    st.sidebar.multiselect("Areas", list(area_options.keys()))
-    if area_options
-    else []
+selected_areas = _sidebar_multiselect(
+    "Areas",
+    list(area_options.keys()),
+    key="selected_areas",
+    disabled=not area_options,
 )
 selected_area_slugs = _selected_slugs(area_options, selected_areas)
 
@@ -189,10 +231,11 @@ if len(selected_area_slugs) == 1:
     district_options = _option_labels(
         load_facet_options(DB_PATH, "district", selected_area_slugs[0])
     )
-selected_districts = (
-    st.sidebar.multiselect("Districts", list(district_options.keys()))
-    if district_options
-    else []
+selected_districts = _sidebar_multiselect(
+    "Districts",
+    list(district_options.keys()),
+    key="selected_districts",
+    disabled=not district_options,
 )
 
 filters = {
@@ -235,7 +278,7 @@ active_crawl = runtime_snapshot["alive"] or progress["running_jobs"] > 0
 crawl_button_label = "Run Scoped Crawl" if crawl_plan.is_scoped else "Run Full Dataset Crawl"
 crawl_started_this_run = False
 
-if st.sidebar.button(crawl_button_label, disabled=active_crawl):
+if st.sidebar.button(crawl_button_label, disabled=active_crawl, key="run_crawl_button"):
     started = _start_crawl_thread(
         db_path=DB_PATH,
         max_pages=cfg.mass_crawl_max_pages,
@@ -262,7 +305,6 @@ active_crawl = crawl_started_this_run or runtime_snapshot["alive"] or progress["
 if st.session_state.get("crawl_status_message"):
     st.sidebar.success(st.session_state["crawl_status_message"])
 
-@st.fragment(run_every=f"{AUTO_REFRESH_SECONDS}s" if active_crawl else None)
 def _render_live_crawl_status() -> None:
     live_progress = load_crawl_progress(DB_PATH)
     live_runtime = _crawl_runtime_snapshot()
@@ -333,9 +375,16 @@ def _render_live_crawl_status() -> None:
 
 
 with st.sidebar:
-    _render_live_crawl_status()
+    if active_crawl:
+        @st.fragment(run_every=f"{AUTO_REFRESH_SECONDS}s")
+        def _render_live_crawl_status_fragment() -> None:
+            _render_live_crawl_status()
 
-if st.sidebar.button("Refresh Log"):
+        _render_live_crawl_status_fragment()
+    else:
+        _render_live_crawl_status()
+
+if st.sidebar.button("Refresh Log", key="refresh_log_button"):
     log_path = Path("data/crawl.log")
     if log_path.exists():
         st.code(log_path.read_text(encoding="utf-8")[-2000:], language="text")
@@ -391,4 +440,5 @@ else:
         csv_data,
         f"yp_export_{datetime.now().strftime('%Y%m%d')}.csv",
         "text/csv",
+        key="download_csv_button",
     )

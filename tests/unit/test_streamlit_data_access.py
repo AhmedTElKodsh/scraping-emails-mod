@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from scraper.models import Facet, ScrapeResult
 
 
@@ -363,6 +365,42 @@ def test_streamlit_full_crawl_uses_http_tiers_only(monkeypatch, tmp_path: Path) 
     assert captured["city_slugs"] is None
     os.environ.pop("DB_PATH", None)
     os.environ.pop("TAXONOMY_SEED_PATH", None)
+
+
+def test_streamlit_cloud_entrypoint_reruns_real_app(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from streamlit.testing.v1 import AppTest
+
+    db_path = tmp_path / "test.sqlite"
+    seed_path = tmp_path / "seed.json"
+    seed_path.write_text(
+        """{
+          "categories": [{"slug": "restaurants", "name": "Restaurants"}],
+          "locations": [{"slug": "cairo", "name": "Cairo", "type": "city"}],
+          "brands": [],
+          "keywords": []
+        }""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("TAXONOMY_SEED_PATH", str(seed_path))
+
+    at = AppTest.from_file("streamlit_app.py")
+    at.run(timeout=60)
+    assert [title.value for title in at.title] == [
+        "YellowPages Egypt - Business Contacts",
+        "Filters",
+    ]
+
+    next(button for button in at.button if button.label == "Refresh Log").click().run(timeout=60)
+
+    assert [title.value for title in at.title] == [
+        "YellowPages Egypt - Business Contacts",
+        "Filters",
+    ]
+    assert not at.exception
 
 
 def test_load_crawl_progress_summarizes_queue_and_saved_data(tmp_path: Path) -> None:
