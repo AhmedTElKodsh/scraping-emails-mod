@@ -101,6 +101,88 @@ def load_crawl_target_options(db_path: str | Path) -> dict[str, list[dict[str, A
     }
 
 
+def _populate_seed_postgres(conn: Any, seed: dict[str, Any]) -> None:
+    for category in seed.get("categories", []):
+        conn.execute(
+            """INSERT INTO categories (slug, name, parent_slug, result_count, href, scraped_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (slug) DO UPDATE SET
+                name=EXCLUDED.name,
+                parent_slug=EXCLUDED.parent_slug,
+                result_count=EXCLUDED.result_count,
+                href=EXCLUDED.href,
+                scraped_at=EXCLUDED.scraped_at""",
+            (
+                category["slug"],
+                category["name"],
+                category.get("parent_slug", ""),
+                category.get("result_count", 0),
+                category.get("href", ""),
+                "",
+            ),
+        )
+    for brand in seed.get("brands", []):
+        conn.execute(
+            """INSERT INTO brands (slug, name, result_count, href, scraped_at)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (slug) DO UPDATE SET
+                name=EXCLUDED.name,
+                result_count=EXCLUDED.result_count,
+                href=EXCLUDED.href,
+                scraped_at=EXCLUDED.scraped_at""",
+            (
+                brand["slug"],
+                brand["name"],
+                brand.get("result_count", 0),
+                brand.get("href", ""),
+                "",
+            ),
+        )
+    for keyword in seed.get("keywords", []):
+        conn.execute(
+            """INSERT INTO keywords (slug, name, href, scraped_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (slug) DO UPDATE SET
+                name=EXCLUDED.name,
+                href=EXCLUDED.href,
+                scraped_at=EXCLUDED.scraped_at""",
+            (
+                keyword["slug"],
+                keyword["name"],
+                keyword.get("href", ""),
+                "",
+            ),
+        )
+    location_order = {"city": 0, "area": 1, "district": 2}
+    locations = sorted(
+        seed.get("locations", []),
+        key=lambda location: location_order.get(location.get("type", "city"), 99),
+    )
+    for location in locations:
+        conn.execute(
+            """INSERT INTO locations
+            (slug, name, type, external_id, parent_slug, result_count, scraped_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (slug) DO UPDATE SET
+                name=EXCLUDED.name,
+                type=EXCLUDED.type,
+                external_id=EXCLUDED.external_id,
+                parent_slug=EXCLUDED.parent_slug,
+                result_count=EXCLUDED.result_count,
+                scraped_at=EXCLUDED.scraped_at""",
+            (
+                location["slug"],
+                location["name"],
+                location.get("type", "city"),
+                location.get("external_id", ""),
+                location.get("parent_slug", ""),
+                location.get("result_count", 0),
+                "",
+            ),
+        )
+    conn.commit()
+
+
 def ensure_seed_taxonomy(db_path: str | Path, seed_path: str | Path) -> bool:
     """Populate bundled taxonomy when a fresh deployment starts with an empty DB."""
     conn, backend = _open(db_path)
@@ -115,10 +197,11 @@ def ensure_seed_taxonomy(db_path: str | Path, seed_path: str | Path) -> bool:
         )
         if category_count and city_count:
             return False
-        if backend != "sqlite":
-            return False
         seed = load_seed(seed_path)
-        populate_from_seed(conn, seed)
+        if backend == "postgres":
+            _populate_seed_postgres(conn, seed)
+        else:
+            populate_from_seed(conn, seed)
         return bool(seed.get("categories") or seed.get("locations"))
     finally:
         conn.close()

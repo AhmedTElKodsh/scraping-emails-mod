@@ -33,6 +33,17 @@ from scraper.config import Settings
 
 st.set_page_config(page_title="YP Egypt Scraper", layout="wide")
 
+
+def _apply_streamlit_secret_env() -> None:
+    try:
+        database_url = st.secrets.get("DATABASE_URL") or st.secrets.get("database_url")
+    except Exception:
+        return
+    if database_url and not os.environ.get("DATABASE_URL"):
+        os.environ["DATABASE_URL"] = str(database_url)
+
+
+_apply_streamlit_secret_env()
 cfg = Settings()
 DB_PATH = getattr(cfg, "database_url", "") or getattr(cfg, "db_path", "data/scraper.sqlite")
 AUTO_REFRESH_SECONDS = 15

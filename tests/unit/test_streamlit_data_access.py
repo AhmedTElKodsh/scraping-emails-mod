@@ -329,6 +329,63 @@ def test_ensure_seed_taxonomy_skips_populated_db(tmp_path: Path) -> None:
     assert ensure_seed_taxonomy(db_path, seed_path) is False
 
 
+def test_ensure_seed_taxonomy_populates_empty_postgres_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from app import data_access
+
+    class FakeResult:
+        def __init__(self, value: int = 0) -> None:
+            self.value = value
+
+        def fetchone(self) -> dict[str, int]:
+            return {"value": self.value}
+
+    class FakePostgresConnection:
+        def __init__(self) -> None:
+            self.statements: list[tuple[str, tuple[object, ...]]] = []
+            self.committed = False
+            self.closed = False
+
+        def execute(
+            self,
+            query: str,
+            params: tuple[object, ...] = (),
+        ) -> FakeResult:
+            self.statements.append((query, params))
+            return FakeResult(0)
+
+        def commit(self) -> None:
+            self.committed = True
+
+        def close(self) -> None:
+            self.closed = True
+
+    conn = FakePostgresConnection()
+    seed_path = tmp_path / "seed.json"
+    seed_path.write_text(
+        """{
+          "categories": [{"slug": "restaurants", "name": "Restaurants"}],
+          "locations": [{"slug": "cairo", "name": "Cairo", "type": "city"}],
+          "brands": [{"slug": "carrier", "name": "Carrier"}],
+          "keywords": [{"slug": "air-condition", "name": "Air Condition"}]
+        }""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(data_access, "_open", lambda _db_path: (conn, "postgres"))
+
+    assert data_access.ensure_seed_taxonomy("postgresql://example", seed_path) is True
+
+    insert_statements = [
+        statement for statement, _params in conn.statements if "INSERT INTO" in statement
+    ]
+    assert len(insert_statements) == 4
+    assert all("%s" in statement for statement in insert_statements)
+    assert conn.committed is True
+    assert conn.closed is True
+
+
 def test_streamlit_full_crawl_uses_http_tiers_only(monkeypatch, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
     import os
 
