@@ -1,5 +1,10 @@
 # Scraping Emails - Business Contact Scraper
 
+![Branch](https://img.shields.io/badge/branch-main-blue)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-Educational-green)
+![Apollo](https://img.shields.io/badge/Apollo-Not%20Included-red)
+
 A Python-based web scraping tool for collecting business contact information from YellowPages Egypt and other compliant acquisition sources.
 
 ## 🌿 Branch Structure
