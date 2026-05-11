@@ -13,6 +13,7 @@ from app.acquisition_data_access import (
     load_recent_contacts,
     load_sources,
 )
+from app.merge_preview import load_unified_business_preview
 from scraper.acquisition_csv import import_csv
 from scraper.config import Settings
 
@@ -31,7 +32,9 @@ cols[2].metric("People", overview["people_count"])
 cols[3].metric("Contacts", overview["contact_count"])
 cols[4].metric("Runs", overview["run_count"])
 
-tab_import, tab_sources, tab_contacts = st.tabs(["CSV Import", "Sources", "Contacts"])
+tab_import, tab_sources, tab_contacts, tab_merge = st.tabs(
+    ["CSV Import", "Sources", "Contacts", "Merge Preview"]
+)
 
 with tab_import:
     st.subheader("User-Owned CSV Import")
@@ -71,3 +74,11 @@ with tab_contacts:
             "No acquisition contacts yet. Start with CSV import or Apollo People "
             "Search dry runs."
         )
+
+with tab_merge:
+    st.subheader("Read-Only Merge Preview")
+    preview_rows = load_unified_business_preview(cfg.db_path, DB_PATH, limit=500)
+    if preview_rows:
+        st.dataframe(pd.DataFrame(preview_rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("No YellowPages or acquisition businesses available to preview yet.")

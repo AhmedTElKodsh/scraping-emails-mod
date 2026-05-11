@@ -160,3 +160,10 @@ def test_acquisition_import_csv_command_uses_separate_db(
 
     assert result.exit_code == 0
     assert "Imported 1 businesses" in result.output
+
+
+def test_python_module_dispatch_knows_acquisition_commands() -> None:
+    from scraper.__main__ import _COMMANDS
+
+    assert "acquisition-ui" in _COMMANDS
+    assert "acquisition-import-csv" in _COMMANDS

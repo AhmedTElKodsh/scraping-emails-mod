@@ -8,6 +8,8 @@ output/
 *.cassette
 .mypy_cache/
 .ruff_cache/
+.pytest_cache/
+.pytest-tmp/
 
 # Runtime data and local tool state
 data/*.sqlite*

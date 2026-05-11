@@ -8,6 +8,8 @@ _COMMANDS = {
     "scrape",
     "taxonomy",
     "ui",
+    "acquisition-ui",
+    "acquisition-import-csv",
     "--help",
     "-h",
     "--version",

@@ -170,6 +170,43 @@ def _seed_default_sources(conn: sqlite3.Connection) -> None:
     )
 
 
+def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _add_column_if_missing(
+    conn: sqlite3.Connection,
+    table: str,
+    column: str,
+    definition: str,
+) -> None:
+    if column not in _columns(conn, table):
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def _backfill_business_merge_keys(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """UPDATE businesses
+        SET city_slug=city
+        WHERE (city_slug IS NULL OR city_slug='') AND city<>''"""
+    )
+    conn.execute(
+        """UPDATE businesses
+        SET raw_html_hash=source_record_id
+        WHERE (raw_html_hash IS NULL OR raw_html_hash='') AND source_record_id<>''"""
+    )
+    conn.execute(
+        """UPDATE businesses
+        SET source_tier=source_name
+        WHERE (source_tier IS NULL OR source_tier='') AND source_name<>''"""
+    )
+    conn.execute(
+        """UPDATE businesses
+        SET scraped_at=acquired_at
+        WHERE scraped_at IS NULL AND acquired_at<>''"""
+    )
+
+
 def init_acquisition_db(conn: sqlite3.Connection) -> None:
     """Create separate acquisition tables with merge-friendly normalized fields."""
     conn.executescript("""
@@ -246,18 +283,24 @@ def init_acquisition_db(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE IF NOT EXISTS businesses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_url TEXT NOT NULL DEFAULT '',
             business_name TEXT NOT NULL DEFAULT '',
+            category_slug TEXT DEFAULT '',
+            city_slug TEXT DEFAULT '',
+            phone TEXT DEFAULT '',
+            email TEXT DEFAULT '',
             normalized_business_name TEXT NOT NULL DEFAULT '',
             website TEXT NOT NULL DEFAULT '',
+            facebook_url TEXT DEFAULT '',
             domain TEXT NOT NULL DEFAULT '',
-            phone TEXT NOT NULL DEFAULT '',
-            email TEXT NOT NULL DEFAULT '',
             address TEXT NOT NULL DEFAULT '',
+            raw_html_hash TEXT DEFAULT '',
+            source_tier TEXT DEFAULT '',
+            scraped_at TEXT,
             city TEXT NOT NULL DEFAULT '',
             country TEXT NOT NULL DEFAULT '',
             source_name TEXT NOT NULL,
             source_record_id TEXT NOT NULL,
-            source_url TEXT NOT NULL DEFAULT '',
             confidence REAL NOT NULL DEFAULT 0,
             acquired_at TEXT NOT NULL,
             UNIQUE(source_name, source_record_id)
@@ -318,5 +361,13 @@ def init_acquisition_db(conn: sqlite3.Connection) -> None:
             UNIQUE(suppression_type, suppression_value)
         );
     """)
+    _add_column_if_missing(conn, "businesses", "category_slug", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "businesses", "city_slug", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "businesses", "facebook_url", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "businesses", "raw_html_hash", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "businesses", "source_tier", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "businesses", "scraped_at", "TEXT")
+    _add_column_if_missing(conn, "businesses", "confidence", "REAL NOT NULL DEFAULT 0")
+    _backfill_business_merge_keys(conn)
     _seed_default_sources(conn)
     conn.commit()

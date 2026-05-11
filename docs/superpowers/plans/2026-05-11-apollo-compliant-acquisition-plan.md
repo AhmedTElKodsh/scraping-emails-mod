@@ -11,7 +11,7 @@ Current repo fit:
 - Existing YellowPages pipeline already stores business/contact data in SQLite and exposes Streamlit filtering.
 - `src/scraper/sites/apollo_public.py` is a low-yield public-page POC and should not become an app-scraping path.
 - The new work should add a source-agnostic acquisition layer, not replace the working YellowPages flow.
-- Implementation starts in a separate acquisition database and separate Streamlit UI. The schema keeps normalized business, people, contact, source, confidence, and provenance fields so data can be merged into the main results database later when the Apollo plan is stable.
+- Implementation starts in a separate acquisition database and separate Streamlit UI. The acquisition `businesses` table must keep every YellowPages `businesses` key (`source_url`, `business_name`, `category_slug`, `city_slug`, `phone`, `email`, `website`, `facebook_url`, `address`, `raw_html_hash`, `source_tier`, `scraped_at`) plus `confidence`. This keeps later merge/export work simple: YellowPages rows can emit `confidence='yellowpages'`, while Apollo/acquisition rows can keep real numeric confidence scores.
 
 ## Research Findings
 
@@ -187,6 +187,7 @@ Add a separate Streamlit acquisition workbench while keeping the existing Yellow
 - Budget dashboard: estimated/actual credits by source and run.
 - Data quality dashboard: new records, duplicates merged, contacts verified, risky contacts rejected.
 - Export controls: filter by source, contact availability, verification status, confidence, date, and suppression status.
+- Add a read-only merge preview that displays YellowPages and acquisition rows in one shared shape before any write-back merge is allowed.
 - Later merge path: once adapters and policy gates are stable, add a reviewed export/merge command from `data/acquisition.sqlite` into the main results database using shared normalized fields.
 
 ## Test Plan

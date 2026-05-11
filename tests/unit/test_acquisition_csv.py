@@ -47,6 +47,13 @@ def test_import_csv_creates_normalized_business_people_contacts(tmp_path: Path) 
     assert counts == {"businesses": 1, "people": 1, "contacts": 3, "raw_records": 1}
     assert business["business_name"] == "Acme Co"
     assert business["domain"] == "acme.example"
+    assert business["category_slug"] == ""
+    assert business["city_slug"] == "Cairo"
+    assert business["facebook_url"] == ""
+    assert business["raw_html_hash"] == business["source_record_id"]
+    assert business["source_tier"] == "csv_import"
+    assert business["scraped_at"] == business["acquired_at"]
+    assert business["confidence"] == 0.8
     assert person["full_name"] == "Jane Doe"
     assert [(row["contact_type"], row["contact_value"]) for row in contacts] == [
         ("email", "jane@acme.example"),

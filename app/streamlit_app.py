@@ -2,7 +2,9 @@
 
 # ruff: noqa: E402
 
+import os
 import sys
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -12,9 +14,10 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+os.environ.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
+
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 from app.crawl_plan import build_crawl_plan
 from app.data_access import (
@@ -84,6 +87,67 @@ def _option_labels(rows: list[dict[str, Any]]) -> dict[str, str]:
 
 def _selected_slugs(label_to_slug: dict[str, str], selected: list[str]) -> list[str]:
     return [label_to_slug[label] for label in selected if label in label_to_slug]
+
+
+@st.cache_resource
+def _crawl_runtime() -> dict[str, Any]:
+    return {
+        "thread": None,
+        "lock": threading.Lock(),
+        "last_error": "",
+        "last_result": None,
+    }
+
+
+def _thread_is_alive(thread: threading.Thread | None) -> bool:
+    return bool(thread and thread.is_alive())
+
+
+def _start_crawl_thread(
+    *,
+    db_path: str,
+    max_pages: int,
+    target_types: list[str],
+    target_slugs_by_type: dict[str, list[str]] | None,
+    cities: str,
+    city_slugs: list[str] | None,
+) -> bool:
+    runtime = _crawl_runtime()
+    with runtime["lock"]:
+        if _thread_is_alive(runtime["thread"]):
+            return False
+        runtime["last_error"] = ""
+        runtime["last_result"] = None
+
+        def crawl_thread() -> None:
+            try:
+                from scraper.mass_crawl import run_mass_crawl
+
+                runtime["last_result"] = run_mass_crawl(
+                    db_path=db_path,
+                    max_pages=max_pages,
+                    target_types=target_types,
+                    target_slugs_by_type=target_slugs_by_type,
+                    cities=cities,
+                    city_slugs=city_slugs,
+                )
+            except Exception as exc:  # pragma: no cover - defensive background guard
+                runtime["last_error"] = f"{type(exc).__name__}: {exc}"
+
+        thread = threading.Thread(target=crawl_thread, daemon=True, name="yp-crawl")
+        runtime["thread"] = thread
+        thread.start()
+        return True
+
+
+def _crawl_runtime_snapshot() -> dict[str, Any]:
+    runtime = _crawl_runtime()
+    with runtime["lock"]:
+        return {
+            "alive": _thread_is_alive(runtime["thread"]),
+            "last_error": runtime["last_error"],
+            "last_result": runtime["last_result"],
+        }
 
 
 st.sidebar.title("Filters")
@@ -157,62 +221,48 @@ with st.expander("Crawl Status"):
         st.info("No crawl jobs yet.")
 
 progress = load_crawl_progress(DB_PATH)
-active_crawl = st.session_state.get("crawl_running", False) or progress["running_jobs"] > 0
+runtime_snapshot = _crawl_runtime_snapshot()
+active_crawl = runtime_snapshot["alive"] or progress["running_jobs"] > 0
 crawl_button_label = "Run Scoped Crawl" if crawl_plan.is_scoped else "Run Full Dataset Crawl"
 
 if st.sidebar.button(crawl_button_label, disabled=active_crawl):
-    st.session_state["crawl_running"] = True
-    import threading
-
-    from scraper.mass_crawl import run_mass_crawl
-
-    def crawl_thread() -> None:
-        try:
-            run_mass_crawl(
-                db_path=DB_PATH,
-                max_pages=cfg.mass_crawl_max_pages,
-                target_types=crawl_plan.target_types,
-                target_slugs_by_type=crawl_plan.target_slugs_by_type,
-                cities=crawl_plan.cities,
-                city_slugs=crawl_plan.city_slugs,
-            )
-        finally:
-            st.session_state["crawl_running"] = False
-
-    threading.Thread(target=crawl_thread, daemon=True).start()
-    if crawl_plan.is_scoped:
+    started = _start_crawl_thread(
+        db_path=DB_PATH,
+        max_pages=cfg.mass_crawl_max_pages,
+        target_types=crawl_plan.target_types,
+        target_slugs_by_type=crawl_plan.target_slugs_by_type,
+        cities=crawl_plan.cities,
+        city_slugs=crawl_plan.city_slugs,
+    )
+    if started and crawl_plan.is_scoped:
         st.session_state["crawl_status_message"] = (
             "Scoped crawl started. Existing saved businesses will be skipped."
         )
-    else:
+    elif started:
         st.session_state["crawl_status_message"] = (
             "Full dataset crawl started. Existing saved businesses will be skipped."
         )
+    else:
+        st.session_state["crawl_status_message"] = "A crawl is already running."
+    st.rerun()
+
+runtime_snapshot = _crawl_runtime_snapshot()
+active_crawl = runtime_snapshot["alive"] or progress["running_jobs"] > 0
 
 if st.session_state.get("crawl_status_message"):
     st.sidebar.success(st.session_state["crawl_status_message"])
 
-if progress["total_jobs"]:
-    completed = progress["done_jobs"]
-    total = progress["total_jobs"]
-    running_page_fraction = min(
-        progress["pages_checked"] / max(cfg.mass_crawl_max_pages, 1),
-        progress["running_jobs"],
-    )
-    ratio = min((completed + running_page_fraction) / total, 1.0)
-    status_text = f"{completed:,} of {total:,} crawl jobs complete ({ratio:.1%})"
-    if active_crawl:
-        components.html(
-            f"""
-            <script>
-            window.setTimeout(function() {{
-                window.parent.location.reload();
-            }}, {AUTO_REFRESH_SECONDS * 1000});
-            </script>
-            """,
-            height=0,
-        )
-        st.sidebar.markdown(
+@st.fragment(run_every=f"{AUTO_REFRESH_SECONDS}s" if active_crawl else None)
+def _render_live_crawl_status() -> None:
+    live_progress = load_crawl_progress(DB_PATH)
+    live_runtime = _crawl_runtime_snapshot()
+    live_active = live_runtime["alive"] or live_progress["running_jobs"] > 0
+
+    if live_runtime["last_error"]:
+        st.error(f"Crawl failed: {live_runtime['last_error']}")
+
+    if live_active:
+        st.markdown(
             f"""
             <div class="crawl-live">
                 <span class="crawl-spinner"></span>
@@ -224,30 +274,56 @@ if progress["total_jobs"]:
             """,
             unsafe_allow_html=True,
         )
-    st.sidebar.progress(ratio, text=status_text)
-    st.sidebar.caption(
-        f"{progress['business_count']:,} businesses saved | "
-        f"{progress['recent_business_count']:,} added in last 10 min | "
-        f"{progress['running_jobs']:,} running | "
-        f"{progress['pending_jobs']:,} queued | "
-        f"{progress['failed_jobs']:,} failed"
-    )
-    st.sidebar.caption("Rows count newly saved unique businesses; existing matches are skipped.")
-    if active_crawl:
-        st.sidebar.info(
-            f"{progress['pages_checked']:,} pages checked and "
-            f"{progress['rows_written']:,} new rows recorded across the crawl queue."
+
+    if live_progress["total_jobs"]:
+        completed = live_progress["done_jobs"]
+        total = live_progress["total_jobs"]
+        running_page_fraction = min(
+            live_progress["pages_checked"] / max(cfg.mass_crawl_max_pages, 1),
+            live_progress["running_jobs"],
         )
-    if progress["running_jobs"]:
-        with st.sidebar.expander("Running Now", expanded=True):
-            for job in progress["current_jobs"]:
-                city = job["city_slug"] or "all cities"
-                st.write(f"**{job['target_type']}**: {job['target_slug']} ({city})")
-                st.caption(
-                    f"{job.get('matching_saved_businesses', 0):,} saved matches available now"
-                )
-    if progress["failed_jobs"]:
-        st.sidebar.warning("Some crawl jobs failed. They will be retried on the next run.")
+        ratio = min((completed + running_page_fraction) / total, 1.0)
+        status_text = f"{completed:,} of {total:,} crawl jobs complete ({ratio:.1%})"
+        st.progress(ratio, text=status_text)
+        st.caption(
+            f"{live_progress['business_count']:,} businesses saved | "
+            f"{live_progress['recent_business_count']:,} added in last 10 min | "
+            f"{live_progress['running_jobs']:,} running | "
+            f"{live_progress['pending_jobs']:,} queued | "
+            f"{live_progress['failed_jobs']:,} failed"
+        )
+        st.caption(
+            "Rows count newly saved unique businesses; existing matches are skipped."
+        )
+        if live_active:
+            st.info(
+                f"{live_progress['pages_checked']:,} pages checked and "
+                f"{live_progress['rows_written']:,} new rows recorded across the crawl queue."
+            )
+        if live_progress["running_jobs"]:
+            with st.expander("Running Now", expanded=True):
+                for job in live_progress["current_jobs"]:
+                    city = job["city_slug"] or "all cities"
+                    st.write(f"**{job['target_type']}**: {job['target_slug']} ({city})")
+                    st.caption(
+                        f"{job.get('matching_saved_businesses', 0):,} saved matches available now"
+                    )
+        if live_progress["failed_jobs"]:
+            st.warning("Some crawl jobs failed. They will be retried on the next run.")
+    elif live_active:
+        st.progress(0, text="Preparing crawl queue...")
+        st.info(
+            "Creating crawl jobs from the saved taxonomy. This will update automatically."
+        )
+    elif live_runtime["last_result"] == 0:
+        st.info(
+            "The last crawl finished without new rows. "
+            "Check taxonomy and filters if this was unexpected."
+        )
+
+
+with st.sidebar:
+    _render_live_crawl_status()
 
 if st.sidebar.button("Refresh Log"):
     log_path = Path("data/crawl.log")

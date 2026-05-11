@@ -87,3 +87,62 @@ def test_scraper_db_does_not_create_acquisition_sources_table(tmp_path: Path) ->
     conn.close()
 
     assert row is None
+
+
+def test_acquisition_businesses_include_yellowpages_merge_keys_plus_confidence(
+    tmp_path: Path,
+) -> None:
+    from scraper.acquisition_db import get_connection as get_acquisition_connection
+    from scraper.acquisition_db import init_acquisition_db
+    from scraper.db import get_connection as get_scraper_connection
+    from scraper.db import init_db
+
+    scraper_conn = get_scraper_connection(tmp_path / "scraper.sqlite")
+    init_db(scraper_conn)
+    acquisition_conn = get_acquisition_connection(tmp_path / "acquisition.sqlite")
+    init_acquisition_db(acquisition_conn)
+
+    scraper_columns = {
+        row[1] for row in scraper_conn.execute("PRAGMA table_info(businesses)").fetchall()
+    }
+    acquisition_columns = {
+        row[1] for row in acquisition_conn.execute("PRAGMA table_info(businesses)").fetchall()
+    }
+    scraper_conn.close()
+    acquisition_conn.close()
+
+    assert (scraper_columns | {"confidence"}).issubset(acquisition_columns)
+
+
+def test_acquisition_db_backfills_merge_keys_for_existing_rows(tmp_path: Path) -> None:
+    from scraper.acquisition_db import get_connection, init_acquisition_db
+
+    conn = get_connection(tmp_path / "acquisition.sqlite")
+    init_acquisition_db(conn)
+    conn.execute(
+        """INSERT INTO businesses
+        (
+            business_name, website, city, source_name, source_record_id,
+            source_url, confidence, acquired_at
+        )
+        VALUES (
+            'Acme', 'https://acme.example', 'Cairo', 'csv_import',
+            'record-1', 'https://acme.example', 0.8, '2026-05-11'
+        )"""
+    )
+    conn.commit()
+
+    init_acquisition_db(conn)
+
+    row = conn.execute(
+        """SELECT city_slug, raw_html_hash, source_tier, scraped_at
+        FROM businesses WHERE source_record_id='record-1'"""
+    ).fetchone()
+    conn.close()
+
+    assert dict(row) == {
+        "city_slug": "Cairo",
+        "raw_html_hash": "record-1",
+        "source_tier": "csv_import",
+        "scraped_at": "2026-05-11",
+    }

@@ -107,22 +107,31 @@ def _insert_business(
     cursor = conn.execute(
         """INSERT OR IGNORE INTO businesses
         (
-            business_name, normalized_business_name, website, domain, phone, email,
-            city, country, source_name, source_record_id, source_url, confidence, acquired_at
+            source_url, business_name, category_slug, city_slug, phone, email,
+            normalized_business_name, website, facebook_url, domain, address,
+            raw_html_hash, source_tier, scraped_at, city, country, source_name,
+            source_record_id, confidence, acquired_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
+            _value(row, "source_url") or website,
             company,
-            company.lower(),
-            website,
-            _domain(website),
+            "",
+            _value(row, "city"),
             phone,
             email,
+            company.lower(),
+            website,
+            "",
+            _domain(website),
+            "",
+            record_id,
+            source_name,
+            now,
             _value(row, "city"),
             _value(row, "country"),
             source_name,
             record_id,
-            _value(row, "source_url") or website,
             0.8,
             now,
         ),
