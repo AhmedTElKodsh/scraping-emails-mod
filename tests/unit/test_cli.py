@@ -1,5 +1,6 @@
 
 import pytest
+from typer.testing import CliRunner
 
 
 def test_safe_slug_replaces_special_chars() -> None:
@@ -86,3 +87,76 @@ def test_parse_target_types_rejects_unknown_type() -> None:
 
     with pytest.raises(ValueError, match="Unsupported target type"):
         _parse_target_types("category,unknown")
+
+
+def test_scrape_use_apollo_is_blocked_before_pipeline_starts() -> None:
+    from scraper.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["scrape", "acme-corp", "--use-apollo"])
+
+    assert result.exit_code == 1
+    assert "Apollo browser/page scraping is deprecated" in result.output
+    assert "official Apollo APIs or CSV imports" in result.output
+
+
+def test_crawl_all_no_browser_disables_browser_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    from scraper.cli import app
+
+    captured: dict[str, object] = {}
+
+    def fake_run_mass_crawl(**kwargs: object) -> int:
+        captured.update(kwargs)
+        return 0
+
+    monkeypatch.setattr("scraper.mass_crawl.run_mass_crawl", fake_run_mass_crawl)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["crawl-all", "--dry-run", "--no-browser"])
+
+    assert result.exit_code == 0
+    assert captured["headless"] is False
+
+
+def test_acquisition_ui_command_launches_separate_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    from scraper.cli import app
+
+    launched: dict[str, object] = {}
+
+    def fake_run(args: list[str]) -> None:
+        launched["args"] = args
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["acquisition-ui"])
+
+    assert result.exit_code == 0
+    assert "app\\acquisition_app.py" in str(launched["args"][-1])
+
+
+def test_acquisition_import_csv_command_uses_separate_db(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # type: ignore[no-untyped-def]
+    from scraper.cli import app
+
+    csv_path = tmp_path / "leads.csv"
+    csv_path.write_text("Company,Email\nAcme,jane@acme.example\n", encoding="utf-8")
+    db_path = tmp_path / "acquisition.sqlite"
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "acquisition-import-csv",
+            str(csv_path),
+            "--db-path",
+            str(db_path),
+            "--source-note",
+            "test import",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Imported 1 businesses" in result.output

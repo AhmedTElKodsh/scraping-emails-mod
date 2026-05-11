@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from scraper.proxy_pool import ProxyPool
 
 app = typer.Typer(
-    help="Email + contact scraper for yellowpages.com.eg and app.apollo.io",
+    help="Email + contact scraper for YellowPages Egypt and permitted acquisition sources",
     no_args_is_help=True,
 )
 
@@ -83,26 +83,34 @@ def _build_proxy_pool(use_proxies: bool) -> ProxyPool | None:
 
 @app.command()
 def scrape(
-    target: str = typer.Argument(..., help="YP target slug or Apollo slug with --use-apollo"),
+    target: str = typer.Argument(..., help="YellowPages target slug"),
     limit: int = typer.Option(50, help="Max pages per category (YP only)"),
     output_dir: str = typer.Option("output", help="Output directory"),
     use_proxies: bool = typer.Option(False, "--use-proxies", help="Enable free proxy pool"),
     use_apollo: bool = typer.Option(
         False,
         "--use-apollo",
-        help="Scrape Apollo.io instead of YellowPages",
+        help="Deprecated: Apollo browser/page scraping is blocked",
     ),
     target_type: str = typer.Option("category", help="YP target type: category, brand, or keyword"),
     city: str = typer.Option("", "--city", help="Optional YP city slug or external id"),
     headless: bool = typer.Option(True, help="Browser headless mode (Tier 3)"),
     no_browser: bool = typer.Option(False, "--no-browser", help="Disable Tier 3 browser fallback"),
 ) -> None:
-    """Scrape business contacts from YellowPages Egypt or Apollo.io (POC)."""
+    """Scrape business contacts from YellowPages Egypt."""
     from scraper.config import Settings
     from scraper.csv_writer import CSVWriter
     from scraper.rate_limiter import RateLimiter
 
     log = structlog.get_logger()
+    if use_apollo:
+        typer.echo(
+            "Apollo browser/page scraping is deprecated and blocked. "
+            "Use official Apollo APIs or CSV imports through the compliant acquisition plan.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
     cfg = Settings()
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -111,65 +119,49 @@ def scrape(
     pipeline = _build_pipeline(use_proxies, headless, use_apollo, no_browser=no_browser)
     proxy_pool = _build_proxy_pool(use_proxies)
 
-    if use_apollo:
-        from scraper.sites.apollo_public import scrape_company
+    from scraper.sites.yellowpages_eg import build_target_url, scrape_target
 
-        slug = _safe_slug(target)
-        csv_path = out / f"apollo_{slug}_{ts}.csv"
-        csv_writer = CSVWriter(csv_path)
-
-        log.info("starting_apollo_scrape", slug=target, output=str(csv_path))
-        try:
-            total = scrape_company(target, pipeline, csv_writer)
-        except Exception as exc:
-            log.error("scrape_failed", error=str(exc), exc_type=type(exc).__name__)
-            typer.echo(f"Error: {exc}", err=True)
-            raise typer.Exit(code=1)
-        typer.echo(f"Done. {total} rows written to {csv_path}")
-    else:
-        from scraper.sites.yellowpages_eg import build_target_url, scrape_target
-
-        if target_type not in {"category", "brand", "keyword"}:
-            typer.echo(f"Error: unsupported target type {target_type}", err=True)
-            raise typer.Exit(code=1)
-        if "/" in target and target_type == "category" and not city:
-            parts = target.split("/")
-            if len(parts) != 2:
-                typer.echo(
-                    "Error: legacy YP target must be 'category/governorate' format",
-                    err=True,
-                )
-                raise typer.Exit(code=1)
-            target, city = parts
-        safe_target = _safe_slug(target)
-        safe_city = _safe_slug(city) if city else "all"
-        csv_path = out / f"yellowpages_eg_{target_type}_{safe_target}_{safe_city}_{ts}.csv"
-
-        rate_limiter = RateLimiter(
-            min_delay=cfg.rate_limit_min_delay,
-            max_delay=cfg.rate_limit_max_delay,
-        )
-        csv_writer = CSVWriter(csv_path)
-
-        start_url = build_target_url(target_type, target, page=1, city_slug=city or None)
-        log.info("starting_yp_scrape", url=start_url, output=str(csv_path), use_proxies=use_proxies)
-        try:
-            total = scrape_target(
-                target_type,
-                target,
-                city or None,
-                pipeline,
-                csv_writer,
-                rate_limiter,
-                proxy_pool=proxy_pool,
-                max_pages=limit,
-                consecutive_empty_halt=cfg.consecutive_empty_halt,
+    if target_type not in {"category", "brand", "keyword"}:
+        typer.echo(f"Error: unsupported target type {target_type}", err=True)
+        raise typer.Exit(code=1)
+    if "/" in target and target_type == "category" and not city:
+        parts = target.split("/")
+        if len(parts) != 2:
+            typer.echo(
+                "Error: legacy YP target must be 'category/governorate' format",
+                err=True,
             )
-        except Exception as exc:
-            log.error("scrape_failed", error=str(exc), exc_type=type(exc).__name__)
-            typer.echo(f"Error: {exc}", err=True)
             raise typer.Exit(code=1)
-        typer.echo(f"Done. {total} rows written to {csv_path}")
+        target, city = parts
+    safe_target = _safe_slug(target)
+    safe_city = _safe_slug(city) if city else "all"
+    csv_path = out / f"yellowpages_eg_{target_type}_{safe_target}_{safe_city}_{ts}.csv"
+
+    rate_limiter = RateLimiter(
+        min_delay=cfg.rate_limit_min_delay,
+        max_delay=cfg.rate_limit_max_delay,
+    )
+    csv_writer = CSVWriter(csv_path)
+
+    start_url = build_target_url(target_type, target, page=1, city_slug=city or None)
+    log.info("starting_yp_scrape", url=start_url, output=str(csv_path), use_proxies=use_proxies)
+    try:
+        total = scrape_target(
+            target_type,
+            target,
+            city or None,
+            pipeline,
+            csv_writer,
+            rate_limiter,
+            proxy_pool=proxy_pool,
+            max_pages=limit,
+            consecutive_empty_halt=cfg.consecutive_empty_halt,
+        )
+    except Exception as exc:
+        log.error("scrape_failed", error=str(exc), exc_type=type(exc).__name__)
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"Done. {total} rows written to {csv_path}")
 
 
 @app.command()
@@ -243,6 +235,20 @@ def ui() -> None:
         typer.echo(f"Error: Streamlit app not found at {app_path}", err=True)
         raise typer.Exit(code=1)
     typer.echo(f"Launching Streamlit UI: {app_path}")
+    subprocess.run([sys.executable, "-m", "streamlit", "run", str(app_path)])
+
+
+@app.command("acquisition-ui")
+def acquisition_ui() -> None:
+    """Launch the separate compliant acquisition workbench."""
+    import subprocess
+    from pathlib import Path
+
+    app_path = Path(__file__).parent.parent.parent / "app" / "acquisition_app.py"
+    if not app_path.exists():
+        typer.echo(f"Error: Acquisition app not found at {app_path}", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"Launching acquisition UI: {app_path}")
     subprocess.run([sys.executable, "-m", "streamlit", "run", str(app_path)])
 
 

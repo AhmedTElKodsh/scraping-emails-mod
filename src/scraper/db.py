@@ -6,7 +6,6 @@ from pathlib import Path
 
 DEFAULT_DB_PATH = "data/scraper.sqlite"
 
-
 def get_connection(db_path: str | Path | None = None) -> sqlite3.Connection:
     """Return a SQLite connection with WAL mode enabled."""
     if db_path is None:
@@ -294,6 +293,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
         );
+
     """)
     _add_column_if_missing(conn, "categories", "result_count", "INTEGER DEFAULT 0")
     _add_column_if_missing(conn, "categories", "href", "TEXT DEFAULT ''")
