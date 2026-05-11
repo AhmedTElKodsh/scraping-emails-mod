@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 
 DEFAULT_DB_PATH = "data/scraper.sqlite"
+ARABIC_ROLE_TERMS = ("مصنع", "مستورد", "موزع")
 
 def get_connection(db_path: str | Path | None = None) -> sqlite3.Connection:
     """Return a SQLite connection with WAL mode enabled."""
@@ -200,6 +201,21 @@ def _sync_location_facets_from_addresses(conn: sqlite3.Connection) -> None:
     )
 
 
+def _seed_arabic_role_terms(conn: sqlite3.Connection) -> None:
+    for term in ARABIC_ROLE_TERMS:
+        conn.execute(
+            """INSERT OR IGNORE INTO categories
+            (slug, name, parent_slug, result_count, href, scraped_at)
+            VALUES (?, ?, '', 0, ?, '')""",
+            (term, term, f"/ar/keyword/{term}"),
+        )
+        conn.execute(
+            """INSERT OR IGNORE INTO keywords (slug, name, href, scraped_at)
+            VALUES (?, ?, ?, '')""",
+            (term, term, f"/ar/keyword/{term}"),
+        )
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     """Create all tables if not present. Idempotent."""
     conn.executescript("""
@@ -242,13 +258,17 @@ def init_db(conn: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             source_url TEXT UNIQUE NOT NULL,
             business_name TEXT DEFAULT '',
+            business_name_ar TEXT DEFAULT '',
             category_slug TEXT,
+            category_ar TEXT DEFAULT '',
             city_slug TEXT,
+            governorate_ar TEXT DEFAULT '',
             phone TEXT DEFAULT '',
             email TEXT DEFAULT '',
             website TEXT DEFAULT '',
             facebook_url TEXT DEFAULT '',
             address TEXT DEFAULT '',
+            address_ar TEXT DEFAULT '',
             raw_html_hash TEXT DEFAULT '',
             source_tier INTEGER DEFAULT 0,
             scraped_at TEXT,
@@ -299,6 +319,10 @@ def init_db(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "categories", "href", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "locations", "external_id", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "locations", "result_count", "INTEGER DEFAULT 0")
+    _add_column_if_missing(conn, "businesses", "business_name_ar", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "businesses", "category_ar", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "businesses", "governorate_ar", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "businesses", "address_ar", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "scrape_jobs", "target_type", "TEXT NOT NULL DEFAULT 'category'")
     _add_column_if_missing(conn, "scrape_jobs", "target_slug", "TEXT NOT NULL DEFAULT ''")
     conn.execute(
@@ -312,4 +336,5 @@ def init_db(conn: sqlite3.Connection) -> None:
     )
     _backfill_legacy_business_facets(conn)
     _sync_location_facets_from_addresses(conn)
+    _seed_arabic_role_terms(conn)
     conn.commit()

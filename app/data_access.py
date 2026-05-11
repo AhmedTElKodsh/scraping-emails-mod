@@ -6,6 +6,7 @@ from typing import Any
 from scraper.storage import Backend, open_connection, placeholder
 from scraper.taxonomy import load_seed, populate_from_seed
 
+ARABIC_ROLE_TERMS = {"مصنع", "مستورد", "موزع"}
 
 def _open(db_path: str | Path) -> tuple[Any, Backend]:
     return open_connection(db_path)
@@ -409,15 +410,19 @@ def load_businesses(
         params: list[Any] = []
         for facet_type, slugs in filters.items():
             placeholders = ",".join(ph for _ in slugs)
+            facet_types = [facet_type]
+            if facet_type == "keyword" and any(slug in ARABIC_ROLE_TERMS for slug in slugs):
+                facet_types.append("category")
+            type_placeholders = ",".join(ph for _ in facet_types)
             query += (
                 " AND EXISTS ("
                 "SELECT 1 FROM business_facets bf "
                 "WHERE bf.source_url=b.source_url "
-                f"AND bf.facet_type={ph} "
+                f"AND bf.facet_type IN ({type_placeholders}) "
                 f"AND bf.slug IN ({placeholders})"
                 ")"
             )
-            params.extend([facet_type, *slugs])
+            params.extend([*facet_types, *slugs])
         query += f" ORDER BY b.scraped_at DESC, b.business_name LIMIT {ph}"
         params.append(limit)
         rows = conn.execute(query, params).fetchall()

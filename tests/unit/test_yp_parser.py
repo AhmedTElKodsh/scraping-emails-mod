@@ -39,6 +39,9 @@ def test_build_target_url_for_category_brand_and_keyword() -> None:
     assert build_target_url("keyword", "Air-Condition", page=1) == (
         "https://yellowpages.com.eg/en/keyword/Air-Condition"
     )
+    assert build_target_url("keyword", "مصنع", page=1) == (
+        "https://yellowpages.com.eg/en/keyword/%D9%85%D8%B5%D9%86%D8%B9"
+    )
 
 
 def test_parse_listing_cards_extracts_profile_url_and_visible_facets() -> None:
@@ -118,6 +121,34 @@ def test_parse_detail_extracts_address() -> None:
     html = (FIXTURES / "yp_listing_detail.html").read_text(encoding="utf-8")
     result = parse_detail(html, "https://yellowpages.com.eg/en/profile/cairo-grill/710101")
     assert "Tahrir" in result.address
+
+
+def test_parse_detail_extracts_arabic_fields() -> None:
+    from scraper.sites.yellowpages_eg import merge_arabic_detail, parse_detail
+
+    english = parse_detail(
+        """
+        <h1 class="companyName">Cairo Factory</h1>
+        <div class="companyName-category">Factories</div>
+        <div class="company-governorate">Cairo</div>
+        <div class="company-address">12 Tahrir St.</div>
+        """,
+        "https://yellowpages.com.eg/en/profile/cairo-factory/123",
+    )
+    arabic_html = """
+        <h1 class="companyName">مصنع القاهرة</h1>
+        <div class="companyName-category">مصانع</div>
+        <div class="company-governorate">القاهرة</div>
+        <div class="company-address">١٢ شارع التحرير</div>
+    """
+
+    result = merge_arabic_detail(english, arabic_html)
+
+    assert result.business_name == "Cairo Factory"
+    assert result.business_name_ar == "مصنع القاهرة"
+    assert result.category_ar == "مصانع"
+    assert result.governorate_ar == "القاهرة"
+    assert result.address_ar == "١٢ شارع التحرير"
 
 
 def test_parse_detail_missing_field_no_crash() -> None:

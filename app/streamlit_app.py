@@ -433,10 +433,12 @@ else:
     df = pd.DataFrame(businesses)
     columns = [
         "business_name",
+        "business_name_ar",
         "phone",
         "email",
         "website",
         "address",
+        "address_ar",
         "source_url",
         "matched_facets",
         "scraped_at",

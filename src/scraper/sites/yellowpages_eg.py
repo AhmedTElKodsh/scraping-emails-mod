@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import structlog
 from selectolax.parser import HTMLParser
@@ -46,7 +46,7 @@ class ListingCard:
 
 
 def build_category_url(category: str, governorate: str | None, page: int = 1) -> str:
-    path = f"/en/category/{category}/p{page}"
+    path = f"/en/category/{quote(category, safe='-&')}/p{page}"
     qs = f"?{urlencode({'city': governorate})}" if governorate else ""
     return f"{BASE_URL}{path}{qs}"
 
@@ -59,10 +59,11 @@ def build_target_url(
 ) -> str:
     if target_type not in TARGET_TYPES:
         raise ValueError(f"Unsupported target_type: {target_type}")
+    encoded_slug = quote(slug, safe="-&")
     if target_type == "keyword":
-        path = f"/en/keyword/{slug}" if page == 1 else f"/en/keyword/{slug}/p{page}"
+        path = f"/en/keyword/{encoded_slug}" if page == 1 else f"/en/keyword/{encoded_slug}/p{page}"
     else:
-        path = f"/en/{target_type}/{slug}/p{page}"
+        path = f"/en/{target_type}/{encoded_slug}/p{page}"
     qs = f"?{urlencode({'city': city_slug})}" if city_slug else ""
     return f"{BASE_URL}{path}{qs}"
 
@@ -176,6 +177,19 @@ def parse_detail(html: str, url: str) -> ScrapeResult:
         raw_html_hash=hashlib.md5(html.encode()).hexdigest(),
         scraped_at=datetime.now(UTC).isoformat(),
     )
+
+
+def arabic_profile_url(url: str) -> str:
+    return url.replace("/en/profile/", "/ar/profile/", 1)
+
+
+def merge_arabic_detail(result: ScrapeResult, arabic_html: str) -> ScrapeResult:
+    arabic = parse_detail(arabic_html, arabic_profile_url(result.url))
+    result.business_name_ar = arabic.business_name
+    result.category_ar = arabic.category
+    result.governorate_ar = arabic.governorate
+    result.address_ar = arabic.address
+    return result
 
 
 def _extract_business_id(url: str) -> str | None:
@@ -326,6 +340,18 @@ def scrape_target(
                     detail_resp = None
                     break
                 result = parse_detail(detail_resp.text, listing_url)
+                arabic_url = arabic_profile_url(listing_url)
+                if arabic_url != listing_url:
+                    try:
+                        arabic_resp = pipeline.fetch(
+                            arabic_url,
+                            proxy=detail_proxy,
+                            referer=listing_url,
+                        )
+                        if arabic_resp.ok:
+                            result = merge_arabic_detail(result, arabic_resp.text)
+                    except Exception:
+                        log.warning("arabic_detail_unavailable", url=arabic_url)
                 result.source_tier = detail_resp.tier
                 result.facets = facets
                 biz_id = _extract_business_id(listing_url)

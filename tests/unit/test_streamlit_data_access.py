@@ -96,6 +96,40 @@ def test_load_businesses_ands_across_facet_groups(tmp_path: Path) -> None:
     assert [row["business_name"] for row in rows] == ["Carrier Cairo"]
 
 
+def test_load_businesses_arabic_role_keyword_matches_category_facet(tmp_path: Path) -> None:
+    from app.data_access import load_businesses, load_crawl_target_options
+    from scraper.db import get_connection, init_db
+
+    db_path = tmp_path / "test.sqlite"
+    conn = get_connection(db_path)
+    init_db(conn)
+    conn.executescript(
+        """
+        INSERT INTO businesses (source_url, business_name)
+        VALUES
+            ('https://example.com/1', 'Factory One'),
+            ('https://example.com/2', 'Distributor Two');
+
+        INSERT INTO business_facets (source_url, facet_type, slug, name)
+        VALUES
+            ('https://example.com/1', 'category', 'مصنع', 'مصنع'),
+            ('https://example.com/2', 'category', 'موزع', 'موزع');
+        """
+    )
+    conn.close()
+
+    options = load_crawl_target_options(db_path)
+    rows = load_businesses(db_path, {"keyword": ["مصنع"]})
+
+    assert {"slug": "مصنع", "name": "مصنع"} in [
+        {"slug": row["slug"], "name": row["name"]} for row in options["categories"]
+    ]
+    assert {"slug": "مصنع", "name": "مصنع"} in [
+        {"slug": row["slug"], "name": row["name"]} for row in options["keywords"]
+    ]
+    assert [row["business_name"] for row in rows] == ["Factory One"]
+
+
 def test_load_matching_jobs_filters_selected_targets_and_city(tmp_path: Path) -> None:
     from app.data_access import load_matching_jobs
     from scraper.db import get_connection, init_db
@@ -192,7 +226,7 @@ def test_load_facet_options_only_returns_values_with_saved_businesses(tmp_path: 
 
 
 def test_load_facet_options_returns_districts_for_selected_area(tmp_path: Path) -> None:
-    from app.data_access import load_facet_options, load_businesses
+    from app.data_access import load_businesses, load_facet_options
     from scraper.db import get_connection, init_db
 
     db_path = tmp_path / "test.sqlite"
@@ -311,9 +345,11 @@ def test_load_crawl_target_options_returns_scraped_taxonomy_items(tmp_path: Path
 
     options = load_crawl_target_options(db_path)
 
-    assert [row["slug"] for row in options["categories"]] == ["atms", "restaurants"]
+    assert [row["slug"] for row in options["categories"]][:2] == ["atms", "restaurants"]
+    assert {row["slug"] for row in options["categories"]} >= {"مصنع", "مستورد", "موزع"}
     assert [row["slug"] for row in options["brands"]] == ["carrier", "sony"]
-    assert [row["slug"] for row in options["keywords"]] == ["air-condition", "compressor"]
+    assert [row["slug"] for row in options["keywords"]][:2] == ["air-condition", "compressor"]
+    assert {row["slug"] for row in options["keywords"]} >= {"مصنع", "مستورد", "موزع"}
     assert options["cities"] == [{"slug": "cairo", "name": "Cairo"}]
 
 

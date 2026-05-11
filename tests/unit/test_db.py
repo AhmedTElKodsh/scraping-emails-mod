@@ -33,9 +33,38 @@ def test_init_adds_new_taxonomy_and_facet_columns(tmp_path: Path) -> None:
 
     location_cols = {row[1] for row in conn.execute("PRAGMA table_info(locations)").fetchall()}
     job_cols = {row[1] for row in conn.execute("PRAGMA table_info(scrape_jobs)").fetchall()}
+    business_cols = {row[1] for row in conn.execute("PRAGMA table_info(businesses)").fetchall()}
 
     assert {"external_id", "result_count", "parent_slug"}.issubset(location_cols)
     assert {"target_type", "target_slug", "city_slug", "status"}.issubset(job_cols)
+    assert {
+        "business_name_ar",
+        "category_ar",
+        "governorate_ar",
+        "address_ar",
+    }.issubset(business_cols)
+    conn.close()
+
+
+def test_init_seeds_arabic_role_terms_as_categories_and_keywords(tmp_path: Path) -> None:
+    from scraper.db import get_connection, init_db
+
+    conn = get_connection(tmp_path / "test.sqlite")
+    init_db(conn)
+
+    categories = conn.execute("SELECT slug, name FROM categories ORDER BY slug").fetchall()
+    keywords = conn.execute("SELECT slug, name FROM keywords ORDER BY slug").fetchall()
+
+    assert {tuple(row) for row in categories} >= {
+        ("مصنع", "مصنع"),
+        ("مستورد", "مستورد"),
+        ("موزع", "موزع"),
+    }
+    assert {tuple(row) for row in keywords} >= {
+        ("مصنع", "مصنع"),
+        ("مستورد", "مستورد"),
+        ("موزع", "موزع"),
+    }
     conn.close()
 
 

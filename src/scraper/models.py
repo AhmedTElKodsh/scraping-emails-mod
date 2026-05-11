@@ -19,13 +19,17 @@ class Facet(BaseModel):
 class ScrapeResult(BaseModel):
     url: str
     business_name: str = ""
+    business_name_ar: str = ""
     category: str = ""
+    category_ar: str = ""
     governorate: str = ""
+    governorate_ar: str = ""
     phone: str = ""
     emails: list[str] = Field(default_factory=list)
     website: str = ""
     facebook_url: str = ""
     address: str = ""
+    address_ar: str = ""
     source_tier: int = 0
     scraped_at: str = ""
     raw_html_hash: str = ""

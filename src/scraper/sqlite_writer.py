@@ -25,20 +25,25 @@ class SQLiteWriter:
             now = (result.scraped_at or datetime.now(UTC).isoformat())
             cursor = self._conn.execute(
                 """INSERT OR IGNORE INTO businesses
-                (source_url, business_name, category_slug, city_slug,
+                (source_url, business_name, business_name_ar,
+                 category_slug, category_ar, city_slug, governorate_ar,
                  phone, email, website, facebook_url, address,
-                 raw_html_hash, source_tier, scraped_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                 address_ar, raw_html_hash, source_tier, scraped_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     result.url,
                     result.business_name,
+                    result.business_name_ar,
                     result.category,
+                    result.category_ar,
                     result.governorate,
+                    result.governorate_ar,
                     result.phone,
                     ",".join(result.emails) if result.emails else "",
                     result.website,
                     result.facebook_url,
                     result.address,
+                    result.address_ar,
                     result.raw_html_hash,
                     result.source_tier,
                     now,
