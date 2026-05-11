@@ -66,6 +66,18 @@ def test_dotenv_override(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     assert s.browser_headless is False
 
 
+def test_dotenv_override_ignores_utf8_bom(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    tmp_path.joinpath(".env").write_text(
+        "\ufeffDATABASE_URL=postgresql://example.test/postgres\n",
+        encoding="utf-8",
+    )
+
+    from scraper.config import Settings
+
+    assert Settings().database_url == "postgresql://example.test/postgres"
+
+
 def test_invalid_delay_raises() -> None:
     from scraper.config import Settings
     with pytest.raises(ValidationError):

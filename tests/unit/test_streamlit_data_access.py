@@ -191,6 +191,43 @@ def test_load_facet_options_only_returns_values_with_saved_businesses(tmp_path: 
     assert giza_areas == []
 
 
+def test_load_facet_options_returns_districts_for_selected_area(tmp_path: Path) -> None:
+    from app.data_access import load_facet_options, load_businesses
+    from scraper.db import get_connection, init_db
+
+    db_path = tmp_path / "test.sqlite"
+    conn = get_connection(db_path)
+    init_db(conn)
+    conn.executescript(
+        """
+        INSERT INTO locations (slug, name, type, parent_slug)
+        VALUES
+            ('cairo', 'Cairo', 'city', ''),
+            ('maadi', 'Maadi', 'area', 'cairo'),
+            ('new-maadi', 'New Maadi', 'district', 'maadi');
+
+        INSERT INTO businesses (source_url, business_name)
+        VALUES ('https://example.com/1', 'New Maadi Shop');
+
+        INSERT INTO business_facets (source_url, facet_type, slug, name)
+        VALUES
+            ('https://example.com/1', 'city', 'cairo', 'Cairo'),
+            ('https://example.com/1', 'area', 'maadi', 'Maadi'),
+            ('https://example.com/1', 'district', 'new-maadi', 'New Maadi');
+        """
+    )
+    conn.close()
+
+    districts = load_facet_options(db_path, "district", parent_slug="maadi")
+    rows = load_businesses(
+        db_path,
+        {"city": ["cairo"], "area": ["maadi"], "district": ["new-maadi"]},
+    )
+
+    assert districts == [{"slug": "new-maadi", "name": "New Maadi", "count": 1}]
+    assert [row["business_name"] for row in rows] == ["New Maadi Shop"]
+
+
 def test_load_filter_options_returns_saved_business_facets(tmp_path: Path) -> None:
     from app.data_access import load_filter_options
     from scraper.db import get_connection, init_db

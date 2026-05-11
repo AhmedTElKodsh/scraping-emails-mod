@@ -1,15 +1,34 @@
 """Postgres connection factory and schema initialization."""
 
 from typing import Any
+from urllib.parse import parse_qsl, unquote, urlparse
 
 import psycopg
 from psycopg.rows import dict_row
 
 
+def _connection_kwargs(database_url: str) -> dict[str, Any]:
+    parsed = urlparse(database_url)
+    if parsed.scheme not in {"postgres", "postgresql"}:
+        return {"conninfo": database_url}
+
+    kwargs: dict[str, Any] = {
+        "host": parsed.hostname,
+        "port": parsed.port or 5432,
+        "dbname": unquote(parsed.path.lstrip("/") or "postgres"),
+        "user": unquote(parsed.username or ""),
+        "password": unquote(parsed.password or ""),
+    }
+    for key, value in parse_qsl(parsed.query):
+        if key in {"sslmode", "connect_timeout", "application_name"}:
+            kwargs[key] = value
+    return kwargs
+
+
 def get_connection(database_url: str) -> Any:
     """Return a Postgres connection suitable for Supabase transaction poolers."""
     return psycopg.connect(
-        database_url,
+        **_connection_kwargs(database_url),
         row_factory=dict_row,
         autocommit=False,
         prepare_threshold=None,
@@ -56,6 +75,10 @@ def init_db(conn: Any) -> None:
             result_count INTEGER DEFAULT 0,
             scraped_at TEXT
         )
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS idx_locations_parent_slug
+            ON locations(parent_slug)
         """,
         """
         CREATE TABLE IF NOT EXISTS businesses (
@@ -115,10 +138,6 @@ def init_db(conn: Any) -> None:
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
         )
-        """,
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_scrape_jobs_target_city
-        ON scrape_jobs(target_type, target_slug, city_slug)
         """,
     ]
     with conn.cursor() as cur:

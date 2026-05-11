@@ -31,6 +31,11 @@ CONFLICT_TARGETS = {
     "schema_meta": "key",
 }
 
+NULL_IF_BLANK = {
+    "locations": {"parent_slug"},
+    "businesses": {"category_slug", "city_slug"},
+}
+
 
 def _sqlite_rows(sqlite_path: Path, table: str) -> tuple[list[str], list[sqlite3.Row]]:
     conn = sqlite3.connect(str(sqlite_path))
@@ -39,6 +44,21 @@ def _sqlite_rows(sqlite_path: Path, table: str) -> tuple[list[str], list[sqlite3
         rows = conn.execute(f"SELECT * FROM {table}").fetchall()
         columns = [row["name"] for row in conn.execute(f"PRAGMA table_info({table})")]
         return columns, rows
+    finally:
+        conn.close()
+
+
+def _valid_location_parent_rows(sqlite_path: Path) -> list[tuple[str, str]]:
+    conn = sqlite3.connect(str(sqlite_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """SELECT child.slug, child.parent_slug
+            FROM locations child
+            JOIN locations parent ON parent.slug=child.parent_slug
+            WHERE child.parent_slug IS NOT NULL AND child.parent_slug<>''"""
+        ).fetchall()
+        return [(row["parent_slug"], row["slug"]) for row in rows]
     finally:
         conn.close()
 
@@ -71,13 +91,30 @@ def migrate(sqlite_path: str | Path, database_url: str) -> dict[str, int]:
                 f"VALUES ({placeholders}) "
                 f"ON CONFLICT ({conflict_target}) DO NOTHING"
             )
+            blank_to_null = NULL_IF_BLANK.get(table, set())
             values: list[tuple[Any, ...]] = [
-                tuple(row[column] for column in columns)
+                tuple(
+                    None
+                    if (
+                        table == "locations"
+                        and column == "parent_slug"
+                    )
+                    or (column in blank_to_null and row[column] == "")
+                    else row[column]
+                    for column in columns
+                )
                 for row in rows
             ]
             with pg.cursor() as cur:
                 cur.executemany(sql, values)
                 copied[table] = cur.rowcount if cur.rowcount >= 0 else 0
+        parent_rows = _valid_location_parent_rows(sqlite_path)
+        if parent_rows:
+            with pg.cursor() as cur:
+                cur.executemany(
+                    "UPDATE locations SET parent_slug=%s WHERE slug=%s",
+                    parent_rows,
+                )
         pg.commit()
         return copied
     except Exception:
