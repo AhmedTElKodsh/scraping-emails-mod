@@ -1,0 +1,26 @@
+# Git attributes for scraping-emails-mod
+
+# Ensure consistent line endings
+* text=auto
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.db binary
+*.sqlite binary
+
+# Mark Apollo-specific files (for reference)
+# These should only exist in apollo-integration branch
+src/scraper/apollo_people_search.py linguist-language=Python
+src/scraper/sites/apollo_public.py linguist-language=Python
+tests/unit/test_apollo_people_search.py linguist-language=Python
+tests/unit/test_apollo_parser.py linguist-language=Python
