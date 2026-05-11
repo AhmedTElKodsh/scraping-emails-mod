@@ -252,5 +252,29 @@ def acquisition_ui() -> None:
     subprocess.run([sys.executable, "-m", "streamlit", "run", str(app_path)])
 
 
+@app.command("acquisition-import-csv")
+def acquisition_import_csv(
+    csv_path: str = typer.Argument(..., help="User-owned CSV path to import"),
+    db_path: str = typer.Option(None, help="Acquisition SQLite DB path"),
+    source_note: str = typer.Option("User-owned CSV import", help="Provenance note"),
+) -> None:
+    """Import a user-owned CSV into the separate acquisition database."""
+    from scraper.acquisition_csv import import_csv
+    from scraper.config import Settings
+
+    cfg = Settings()
+    result = import_csv(
+        csv_path,
+        db_path=db_path or cfg.acquisition_db_path,
+        source_name="csv_import",
+        provenance_note=source_note,
+    )
+    typer.echo(
+        f"Imported {result.businesses_written} businesses, "
+        f"{result.people_written} people, and {result.contacts_written} contacts "
+        f"from {result.rows_seen} CSV rows."
+    )
+
+
 if __name__ == "__main__":
     app()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -70,7 +71,7 @@ def _full_name(first_name: str, last_name: str, full_name: str) -> str:
 
 
 def _insert_raw_record(
-    conn,
+    conn: sqlite3.Connection,
     source_name: str,
     source_record_id: str,
     row: dict[str, str],
@@ -92,7 +93,13 @@ def _insert_raw_record(
     return int(cursor.rowcount)
 
 
-def _insert_business(conn, row: dict[str, str], source_name: str, record_id: str, now: str) -> int:
+def _insert_business(
+    conn: sqlite3.Connection,
+    row: dict[str, str],
+    source_name: str,
+    record_id: str,
+    now: str,
+) -> int:
     company = _value(row, "company")
     website = _value(row, "website")
     email = _value(row, "email")
@@ -123,7 +130,7 @@ def _insert_business(conn, row: dict[str, str], source_name: str, record_id: str
     return int(cursor.rowcount)
 
 
-def _business_id(conn, source_name: str, record_id: str) -> int | None:
+def _business_id(conn: sqlite3.Connection, source_name: str, record_id: str) -> int | None:
     row = conn.execute(
         "SELECT id FROM businesses WHERE source_name=? AND source_record_id=?",
         (source_name, record_id),
@@ -132,7 +139,7 @@ def _business_id(conn, source_name: str, record_id: str) -> int | None:
 
 
 def _insert_person(
-    conn,
+    conn: sqlite3.Connection,
     row: dict[str, str],
     source_name: str,
     record_id: str,
@@ -167,7 +174,7 @@ def _insert_person(
     return int(cursor.rowcount)
 
 
-def _person_id(conn, source_name: str, record_id: str) -> int | None:
+def _person_id(conn: sqlite3.Connection, source_name: str, record_id: str) -> int | None:
     row = conn.execute(
         "SELECT id FROM people WHERE source_name=? AND source_record_id=?",
         (source_name, record_id),
@@ -176,7 +183,7 @@ def _person_id(conn, source_name: str, record_id: str) -> int | None:
 
 
 def _insert_contact(
-    conn,
+    conn: sqlite3.Connection,
     contact_type: str,
     contact_value: str,
     source_name: str,
@@ -231,7 +238,14 @@ def import_csv(
                 )
                 businesses_written += _insert_business(conn, row, source_name, record_id, now)
                 business_id = _business_id(conn, source_name, record_id)
-                people_written += _insert_person(conn, row, source_name, record_id, business_id, now)
+                people_written += _insert_person(
+                    conn,
+                    row,
+                    source_name,
+                    record_id,
+                    business_id,
+                    now,
+                )
                 person_id = _person_id(conn, source_name, record_id)
                 contacts_written += _insert_contact(
                     conn,
