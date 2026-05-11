@@ -233,6 +233,7 @@ progress = load_crawl_progress(DB_PATH)
 runtime_snapshot = _crawl_runtime_snapshot()
 active_crawl = runtime_snapshot["alive"] or progress["running_jobs"] > 0
 crawl_button_label = "Run Scoped Crawl" if crawl_plan.is_scoped else "Run Full Dataset Crawl"
+crawl_started_this_run = False
 
 if st.sidebar.button(crawl_button_label, disabled=active_crawl):
     started = _start_crawl_thread(
@@ -243,6 +244,7 @@ if st.sidebar.button(crawl_button_label, disabled=active_crawl):
         cities=crawl_plan.cities,
         city_slugs=crawl_plan.city_slugs,
     )
+    crawl_started_this_run = started
     if started and crawl_plan.is_scoped:
         st.session_state["crawl_status_message"] = (
             "Scoped crawl started. Existing saved businesses will be skipped."
@@ -253,10 +255,9 @@ if st.sidebar.button(crawl_button_label, disabled=active_crawl):
         )
     else:
         st.session_state["crawl_status_message"] = "A crawl is already running."
-    st.rerun()
 
 runtime_snapshot = _crawl_runtime_snapshot()
-active_crawl = runtime_snapshot["alive"] or progress["running_jobs"] > 0
+active_crawl = crawl_started_this_run or runtime_snapshot["alive"] or progress["running_jobs"] > 0
 
 if st.session_state.get("crawl_status_message"):
     st.sidebar.success(st.session_state["crawl_status_message"])
