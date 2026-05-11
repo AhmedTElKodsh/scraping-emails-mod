@@ -33,7 +33,7 @@ from scraper.config import Settings
 st.set_page_config(page_title="YP Egypt Scraper", layout="wide")
 
 cfg = Settings()
-DB_PATH = cfg.database_url or cfg.db_path
+DB_PATH = getattr(cfg, "database_url", "") or getattr(cfg, "db_path", "data/scraper.sqlite")
 AUTO_REFRESH_SECONDS = 15
 
 st.markdown(
