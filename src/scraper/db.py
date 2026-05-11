@@ -6,6 +6,7 @@ from pathlib import Path
 
 DEFAULT_DB_PATH = "data/scraper.sqlite"
 ARABIC_ROLE_TERMS = ("مصنع", "مستورد", "موزع")
+ARABIC_ROLE_SEARCH_HREF = "/en/search/{}"
 
 def get_connection(db_path: str | Path | None = None) -> sqlite3.Connection:
     """Return a SQLite connection with WAL mode enabled."""
@@ -207,12 +208,20 @@ def _seed_arabic_role_terms(conn: sqlite3.Connection) -> None:
             """INSERT OR IGNORE INTO categories
             (slug, name, parent_slug, result_count, href, scraped_at)
             VALUES (?, ?, '', 0, ?, '')""",
-            (term, term, f"/ar/keyword/{term}"),
+            (term, term, ARABIC_ROLE_SEARCH_HREF.format(term)),
+        )
+        conn.execute(
+            "UPDATE categories SET href=? WHERE slug=?",
+            (ARABIC_ROLE_SEARCH_HREF.format(term), term),
         )
         conn.execute(
             """INSERT OR IGNORE INTO keywords (slug, name, href, scraped_at)
             VALUES (?, ?, ?, '')""",
-            (term, term, f"/ar/keyword/{term}"),
+            (term, term, ARABIC_ROLE_SEARCH_HREF.format(term)),
+        )
+        conn.execute(
+            "UPDATE keywords SET href=? WHERE slug=?",
+            (ARABIC_ROLE_SEARCH_HREF.format(term), term),
         )
 
 

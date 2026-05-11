@@ -23,6 +23,7 @@ log = structlog.get_logger()
 
 BASE_URL = "https://yellowpages.com.eg"
 TARGET_TYPES = {"category", "brand", "keyword"}
+ARABIC_ROLE_SEARCH_TERMS = {"مصنع", "مستورد", "موزع"}
 
 # Site-wide footer/chrome emails that appear on every profile — never per-business.
 _EMAIL_DENYLIST = {"customercare@yellow.com.eg"}
@@ -60,7 +61,9 @@ def build_target_url(
     if target_type not in TARGET_TYPES:
         raise ValueError(f"Unsupported target_type: {target_type}")
     encoded_slug = quote(slug, safe="-&")
-    if target_type == "keyword":
+    if slug in ARABIC_ROLE_SEARCH_TERMS and target_type in {"category", "keyword"}:
+        path = f"/en/search/{encoded_slug}" if page == 1 else f"/en/search/{encoded_slug}/p{page}"
+    elif target_type == "keyword":
         path = f"/en/keyword/{encoded_slug}" if page == 1 else f"/en/keyword/{encoded_slug}/p{page}"
     else:
         path = f"/en/{target_type}/{encoded_slug}/p{page}"
@@ -211,6 +214,31 @@ def _fetch_phones(pipeline: "Pipeline", biz_id: str, referer: str) -> str:
         return ""
 
 
+def _backfill_existing_arabic_detail(
+    listing_url: str,
+    pipeline: "Pipeline",
+    csv_writer: "ResultWriter",
+) -> int:
+    has_arabic_fields = getattr(csv_writer, "has_arabic_fields", None)
+    update_arabic_fields = getattr(csv_writer, "update_arabic_fields", None)
+    if not callable(has_arabic_fields) or not callable(update_arabic_fields):
+        return 0
+    if has_arabic_fields(listing_url):
+        return 0
+    arabic_url = arabic_profile_url(listing_url)
+    if arabic_url == listing_url:
+        return 0
+    try:
+        arabic_resp = pipeline.fetch(arabic_url, referer=listing_url)
+        if not arabic_resp.ok:
+            return 0
+        arabic = parse_detail(arabic_resp.text, arabic_url)
+        return int(update_arabic_fields(listing_url, arabic) or 0)
+    except Exception:
+        log.warning("arabic_detail_unavailable", url=arabic_url)
+        return 0
+
+
 def _crawl_facets(
     listing_facets: list[Facet],
     target_type: str,
@@ -319,10 +347,16 @@ def scrape_target(
             if callable(has_url) and has_url(listing_url):
                 write_facets = getattr(csv_writer, "write_facets", None)
                 saved_facets = write_facets(listing_url, facets) if callable(write_facets) else 0
+                updated_arabic = _backfill_existing_arabic_detail(
+                    listing_url,
+                    pipeline,
+                    csv_writer,
+                )
                 log.info(
                     "listing_skip_existing",
                     url=listing_url,
                     saved_facets=saved_facets,
+                    updated_arabic=updated_arabic,
                 )
                 continue
             result = None

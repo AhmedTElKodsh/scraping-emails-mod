@@ -16,6 +16,8 @@ def test_defaults_load_without_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.output_dir == "output"
     assert s.db_path == "data/scraper.sqlite"
     assert s.acquisition_db_path == "data/acquisition.sqlite"
+    assert "United States" in s.apollo_default_person_locations
+    assert "Egypt" in s.apollo_default_person_locations
     assert s.consecutive_empty_halt == 5
 
 
@@ -64,6 +66,19 @@ def test_dotenv_override(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
 
     assert s.rate_limit_max_delay == 3.5
     assert s.browser_headless is False
+
+
+def test_env_values_override_dotenv(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
+    tmp_path.joinpath(".env").write_text(
+        "DATABASE_URL=postgresql://from-file/postgres\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DATABASE_URL", "")
+
+    from scraper.config import Settings
+
+    assert Settings().database_url == ""
 
 
 def test_dotenv_override_ignores_utf8_bom(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:

@@ -14,6 +14,26 @@ def test_done_job_skipped() -> None:
     assert job["status"] == "done"
 
 
+def test_zero_row_done_arabic_role_jobs_are_retryable() -> None:
+    from scraper.mass_crawl import _should_skip_done_job
+
+    assert _should_skip_done_job(
+        "category",
+        "مستورد",
+        {"status": "done", "rows_written": 0},
+    ) is False
+    assert _should_skip_done_job(
+        "category",
+        "مستورد",
+        {"status": "done", "rows_written": 4},
+    ) is True
+    assert _should_skip_done_job(
+        "category",
+        "restaurants",
+        {"status": "done", "rows_written": 0},
+    ) is True
+
+
 def test_failed_job_reset_to_pending_then_runs() -> None:
     from scraper.mass_crawl import _get_or_create_job
 
@@ -129,11 +149,17 @@ def test_load_targets_reads_requested_taxonomy_tables(tmp_path) -> None:  # type
     conn.execute("INSERT INTO keywords (slug, name) VALUES ('Air-Condition', 'Air Condition')")
     conn.commit()
 
-    assert _load_targets(conn, ["category", "brand", "keyword"]) == [
+    targets = _load_targets(conn, ["category", "brand", "keyword"])
+
+    assert targets[:4] == [
         ("category", "air-conditioning"),
-        ("brand", "carrier"),
-        ("keyword", "Air-Condition"),
+        ("category", "مستورد"),
+        ("category", "مصنع"),
+        ("category", "موزع"),
     ]
+    assert ("brand", "carrier") in targets
+    assert ("keyword", "Air-Condition") in targets
+    assert ("keyword", "مستورد") in targets
     conn.close()
 
 

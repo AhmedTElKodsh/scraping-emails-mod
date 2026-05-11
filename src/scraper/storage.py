@@ -22,9 +22,9 @@ def storage_target(
     db_path: str | Path | None = None,
     settings: Settings | None = None,
 ) -> str | Path:
-    """Return the active storage target, preferring DATABASE_URL over DB_PATH."""
+    """Return the active storage target, honoring explicit db_path first."""
     settings = settings or Settings()
-    return settings.database_url or db_path or settings.db_path
+    return db_path or settings.database_url or settings.db_path
 
 
 def open_connection(target: str | Path | None = None) -> tuple[Any, Backend]:

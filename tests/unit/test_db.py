@@ -52,18 +52,18 @@ def test_init_seeds_arabic_role_terms_as_categories_and_keywords(tmp_path: Path)
     conn = get_connection(tmp_path / "test.sqlite")
     init_db(conn)
 
-    categories = conn.execute("SELECT slug, name FROM categories ORDER BY slug").fetchall()
-    keywords = conn.execute("SELECT slug, name FROM keywords ORDER BY slug").fetchall()
+    categories = conn.execute("SELECT slug, name, href FROM categories ORDER BY slug").fetchall()
+    keywords = conn.execute("SELECT slug, name, href FROM keywords ORDER BY slug").fetchall()
 
     assert {tuple(row) for row in categories} >= {
-        ("مصنع", "مصنع"),
-        ("مستورد", "مستورد"),
-        ("موزع", "موزع"),
+        ("مصنع", "مصنع", "/en/search/مصنع"),
+        ("مستورد", "مستورد", "/en/search/مستورد"),
+        ("موزع", "موزع", "/en/search/موزع"),
     }
     assert {tuple(row) for row in keywords} >= {
-        ("مصنع", "مصنع"),
-        ("مستورد", "مستورد"),
-        ("موزع", "موزع"),
+        ("مصنع", "مصنع", "/en/search/مصنع"),
+        ("مستورد", "مستورد", "/en/search/مستورد"),
+        ("موزع", "موزع", "/en/search/موزع"),
     }
     conn.close()
 

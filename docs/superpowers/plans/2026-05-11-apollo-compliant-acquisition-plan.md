@@ -13,6 +13,19 @@ Current repo fit:
 - The new work should add a source-agnostic acquisition layer, not replace the working YellowPages flow.
 - Implementation starts in a separate acquisition database and separate Streamlit UI. The acquisition `businesses` table must keep every YellowPages `businesses` key (`source_url`, `business_name`, `category_slug`, `city_slug`, `phone`, `email`, `website`, `facebook_url`, `address`, `raw_html_hash`, `source_tier`, `scraped_at`) plus `confidence`. This keeps later merge/export work simple: YellowPages rows can emit `confidence='yellowpages'`, while Apollo/acquisition rows can keep real numeric confidence scores.
 
+Scope correction:
+
+- The acquisition pipeline is worldwide by default. YellowPages Egypt is only one existing source, not the geographic boundary of the product.
+- Any adapter that requires locations, including Apollo People Search, must accept explicit country/city/region batches and should support global batching rather than hard-coding Egypt.
+- Location fields remain optional normalized metadata for dedupe, scoring, and filtering; they are not a restriction unless a run explicitly sets them.
+
+Pipeline correction:
+
+- Each extracted business or person becomes a research target, not a finished lead.
+- The target is deep-researched through a waterfall of permitted public pages, company websites, official/free APIs, user-owned data, and limited free-tier APIs.
+- Limited free APIs must expose quota state. When a free quota is exhausted or unknown, the task shifts to the next configured fallback source instead of failing the whole pipeline or silently using paid credits.
+- The pipeline should record every attempted source, stop reason, confidence, raw evidence, and fallback decision.
+
 ## Research Findings
 
 Apollo constraints and official paths:
@@ -41,6 +54,7 @@ Free-path clarification:
 - Business websites can often be found from YellowPages, public directories, imported CSVs, or company-domain fields returned by candidate/search APIs. Website discovery should happen before any paid personal-contact enrichment.
 - Phone numbers are the hardest field to obtain for free. Use only phones that are already public, user-owned/imported, or returned by an official enrichment path with explicit budget approval.
 - The completely free route is therefore: existing YellowPages/public directories and user-owned CSVs first; Apollo People Search for target candidates; public website/contact-page discovery; verifier tools to clean known emails. It should not be described as a free way to get personal emails and phones from Apollo.
+- The worldwide route is the same pattern repeated by geography and source availability: global candidate discovery first, then company/person research, then fallback enrichment only where terms and quota allow.
 
 ## Acquisition Order: Free to Cheapest
 
@@ -75,26 +89,33 @@ Free-path clarification:
    - Use for: enriching company domains before spending personal-contact credits.
    - Guardrail: crawl only websites/directories whose terms permit access; respect robots and conservative rate limits.
 
-6. **Email verification first**
+6. **Deep web research waterfall**
+   - Cost: free first, then limited free API quotas, then explicitly approved paid APIs.
+   - Yield: company websites, generic emails, contact pages, social/profile links, public phones, structured snippets, source evidence.
+   - Order: existing DB evidence; company website/contact pages; permitted public directories; official search APIs with free quota; email finder free/trial quota; paid enrichment only after scoring.
+   - Fallback rule: if a provider is exhausted, rate-limited, disabled, or missing required usage data, mark the task with that stop reason and continue to the next provider in the same fallback group.
+   - Guardrail: never bypass API limits, robots/terms, login walls, CAPTCHAs, or paid-credit gates.
+
+7. **Email verification first**
    - Cost: free/cheap via Reoon, ZeroBounce, MillionVerifier, or similar.
    - Yield: no new leads, but protects sender reputation and removes invalid/risky addresses.
    - Use for: validating emails found from public websites, user CSVs, and finder APIs.
    - Not for: discovering missing emails, phone numbers, or websites.
    - Guardrail: never treat verifier "valid" as consent to contact; keep verification status separate from outreach eligibility.
 
-7. **Cheap email finder waterfall**
+8. **Cheap email finder waterfall**
    - Cost: paid but lower-cost than broad Apollo enrichment at small/medium scale.
    - Yield: emails for scored candidate records; phone yield usually weaker.
    - Order: test Hunter free credits, Snov.io trial/free credits, Findymail free credits, then a small paid month/credit pack from the best performer.
    - Guardrail: require per-vendor ToS notes, budget limits, and source-level confidence scores. Do not use vendors for contacts or regions their terms disallow.
 
-8. **Apollo official enrichment endpoints**
+9. **Apollo official enrichment endpoints**
    - Cost: Apollo credits.
    - Yield: best fit for high-priority selected records needing verified business email or phone.
    - Use for: top-scored leads only after dedupe and cheaper enrichment attempts.
    - Guardrail: require explicit `enable_paid_apollo=true`, per-run credit budget, usage check, and automatic stop on unknown remaining credits.
 
-9. **Apollo paid plan upgrade**
+10. **Apollo paid plan upgrade**
    - Cost: paid subscription and credits.
    - Yield: higher volume and operational convenience.
    - Use for: only after a measured pilot proves Apollo's cost per usable verified contact beats cheaper vendor waterfall.
@@ -102,11 +123,22 @@ Free-path clarification:
 
 ## Implementation Changes
 
+Implementation status as of 2026-05-11:
+
+- Separate acquisition DB/UI is in place at `data/acquisition.sqlite` and `app/acquisition_app.py`.
+- The acquisition `businesses` table keeps the YellowPages merge keys plus numeric `confidence`.
+- CSV import is implemented for user-owned exports/imports.
+- Read-only merge preview is implemented; YellowPages preview rows emit `confidence='yellowpages'`, acquisition rows emit numeric confidence.
+- Apollo People Search V1 is implemented through the official API adapter only. It writes candidate businesses, people, raw records, run/task ledger rows, and website contacts. It intentionally does not write email or phone values from People Search responses.
+- `acquisition-apollo-search` CLI and the separate acquisition UI both default to dry run. Live Apollo requests require an API key and the `--live`/UI live toggle.
+- The Apollo UI default locations are now a broad global batch, not Egypt-only. Operators can replace that list per run.
+
 ### 1. Source registry and policy gate
 
 - Add a separate local acquisition database, defaulting to `data/acquisition.sqlite`, instead of mixing Apollo/source policy state into the current YellowPages `data/scraper.sqlite`.
 - Add `sources` records for `yellowpages`, `csv_import`, `apollo_csv_export`, `apollo_people_search`, `apollo_enrichment`, `hunter`, `snov`, `findymail`, `reoon`, and `zerobounce`.
 - Each source stores: `source_name`, `source_type`, `allowed_use_note`, `terms_url`, `requires_api_key`, `can_collect_people`, `can_collect_contacts`, `can_enrich`, `is_paid`, `enabled`.
+- Extend source policy with fallback metadata before adding more live adapters: `fallback_group`, `fallback_priority`, `coverage_scope`, `free_quota_limit`, `free_quota_used`, `quota_reset_at`, `last_quota_check_at`, and `quota_status`.
 - Add a startup policy gate: disabled sources cannot run; paid sources cannot run without an explicit budget; unknown terms block execution.
 - Mark `apollo_public.py` as deprecated for production acquisition. Keep only parser tests if useful, or replace it with official Apollo API adapters.
 - Remove or block CLI/app paths that present Apollo browser/page scraping as a supported production feature. Any Apollo implementation must use official APIs or user-exported CSV imports.
@@ -120,6 +152,10 @@ Free-path clarification:
   - `raw_records`: immutable source payload JSON, source record id, acquired_at, provenance.
   - `source_links`: normalized entity id, source, source record id, confidence, acquired_at.
   - `suppression_list`: email/domain/phone/person/company, reason, source, created_at.
+- Add deep research queue tables before implementing broad provider fallbacks:
+  - `research_targets`: business/person input, target type, normalized query fields, status, priority, max_free_attempts, created/finished.
+  - `research_attempts`: target, source, attempt order, query JSON, result summary, quota status, stop reason, evidence count, started/finished.
+  - `evidence_records`: target, source, evidence type, URL/API record id, extracted value, confidence, raw payload, acquired_at.
 - Task statuses: `pending`, `leased`, `succeeded`, `retry_wait`, `blocked_budget`, `blocked_rate`, `skipped_duplicate`, `skipped_policy`, `failed`.
 - Use SQLite queueing first. No Celery or external worker until local queue limits are proven.
 
@@ -143,6 +179,9 @@ V1 adapters:
 
 - `CsvImportAdapter`: maps Apollo/user CSV files into normalized businesses, people, and contacts.
 - `ApolloPeopleSearchAdapter`: official People API Search only, no email/phone fields expected.
+- `DeepResearchOrchestrator`: turns every normalized business/person into a target and walks the fallback list until enough evidence is collected or all free sources are exhausted.
+- `CompanyWebsiteResearchAdapter`: crawls permitted company websites/contact pages to find public business contacts and evidence.
+- `FreeSearchApiAdapter`: uses configured free-search APIs where terms allow, with strict quota tracking and fallback on exhaustion.
 - `ApolloUsageAdapter`: reads API usage/rate limits before and during Apollo runs.
 - `EmailVerifierAdapter`: generic verification contract with Reoon first, ZeroBounce optional.
 - `EmailFinderAdapter`: generic finder contract; implement one cheap provider first after API docs are checked.
@@ -206,6 +245,11 @@ Add a separate Streamlit acquisition workbench while keeping the existing Yellow
   - retry waits do not spin,
   - blocked budget/rate states are resumable,
   - failed runs preserve partial raw records.
+- Deep research tests:
+  - every Apollo/CSV business or person can create one research target,
+  - exhausted free quota shifts to the next fallback source,
+  - unknown quota fails closed for that source without using paid credits,
+  - evidence records preserve source URL/API record id and confidence.
 - Credit safety tests:
   - Apollo usage endpoint success updates the ledger,
   - missing usage response fails closed,

@@ -206,18 +206,21 @@ selected_categories = _sidebar_multiselect(
     list(category_options.keys()),
     key="selected_categories",
 )
-selected_brands = _sidebar_multiselect(
-    "Brands",
-    list(brand_options.keys()),
-    key="selected_brands",
-    disabled=not brand_options,
-)
-selected_keywords = _sidebar_multiselect(
-    "Keywords",
-    list(keyword_options.keys()),
-    key="selected_keywords",
-    disabled=not keyword_options,
-)
+selected_brands: list[str] = []
+if brand_options:
+    selected_brands = _sidebar_multiselect(
+        "Brands",
+        list(brand_options.keys()),
+        key="selected_brands",
+    )
+
+selected_keywords: list[str] = []
+if keyword_options:
+    selected_keywords = _sidebar_multiselect(
+        "Keywords",
+        list(keyword_options.keys()),
+        key="selected_keywords",
+    )
 selected_cities = _sidebar_multiselect(
     "Cities",
     list(city_options.keys()),
@@ -229,12 +232,13 @@ selected_city_slugs = _selected_slugs(city_options, selected_cities)
 area_options: dict[str, str] = {}
 if len(selected_city_slugs) == 1:
     area_options = _option_labels(load_facet_options(DB_PATH, "area", selected_city_slugs[0]))
-selected_areas = _sidebar_multiselect(
-    "Areas",
-    list(area_options.keys()),
-    key="selected_areas",
-    disabled=not area_options,
-)
+selected_areas: list[str] = []
+if area_options:
+    selected_areas = _sidebar_multiselect(
+        "Areas",
+        list(area_options.keys()),
+        key="selected_areas",
+    )
 selected_area_slugs = _selected_slugs(area_options, selected_areas)
 
 district_options: dict[str, str] = {}
@@ -242,12 +246,13 @@ if len(selected_area_slugs) == 1:
     district_options = _option_labels(
         load_facet_options(DB_PATH, "district", selected_area_slugs[0])
     )
-selected_districts = _sidebar_multiselect(
-    "Districts",
-    list(district_options.keys()),
-    key="selected_districts",
-    disabled=not district_options,
-)
+selected_districts: list[str] = []
+if district_options:
+    selected_districts = _sidebar_multiselect(
+        "Districts",
+        list(district_options.keys()),
+        key="selected_districts",
+    )
 
 filters = {
     "category": _selected_slugs(category_options, selected_categories),

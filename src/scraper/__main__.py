@@ -10,6 +10,7 @@ _COMMANDS = {
     "ui",
     "acquisition-ui",
     "acquisition-import-csv",
+    "acquisition-apollo-search",
     "--help",
     "-h",
     "--version",

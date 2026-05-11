@@ -162,8 +162,39 @@ def test_acquisition_import_csv_command_uses_separate_db(
     assert "Imported 1 businesses" in result.output
 
 
+def test_acquisition_apollo_search_dry_run_uses_separate_db(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from scraper.acquisition_db import get_connection, init_acquisition_db
+    from scraper.cli import app
+
+    db_path = tmp_path / "acquisition.sqlite"
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "acquisition-apollo-search",
+            "--db-path",
+            str(db_path),
+            "--person-title",
+            "Owner",
+            "--person-location",
+            "Egypt",
+        ],
+    )
+
+    conn = get_connection(db_path)
+    init_acquisition_db(conn)
+    run = conn.execute("SELECT * FROM acquisition_runs").fetchone()
+    conn.close()
+
+    assert result.exit_code == 0
+    assert "Dry run created" in result.output
+    assert run["source_name"] == "apollo_people_search"
+
+
 def test_python_module_dispatch_knows_acquisition_commands() -> None:
     from scraper.__main__ import _COMMANDS
 
     assert "acquisition-ui" in _COMMANDS
     assert "acquisition-import-csv" in _COMMANDS
+    assert "acquisition-apollo-search" in _COMMANDS

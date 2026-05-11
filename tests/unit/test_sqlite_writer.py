@@ -107,3 +107,36 @@ def test_has_url_and_write_facets_support_skip_without_detail_refetch(tmp_path: 
     ).fetchall()
     assert [tuple(row) for row in rows] == [("brand", "carrier", "Carrier")]
     conn.close()
+
+
+def test_update_arabic_fields_backfills_existing_business(tmp_path: Path) -> None:
+    from scraper.db import get_connection
+    from scraper.sqlite_writer import SQLiteWriter
+
+    db_path = tmp_path / "test.sqlite"
+    writer = SQLiteWriter(db_path)
+    source_url = "http://example.com/1"
+    writer.write(ScrapeResult(url=source_url, business_name="Test Biz"))
+
+    assert writer.has_arabic_fields(source_url) is False
+    assert writer.update_arabic_fields(
+        source_url,
+        ScrapeResult(
+            url=source_url.replace("/en/", "/ar/"),
+            business_name="مصنع الاختبار",
+            category="مصانع",
+            governorate="القاهرة",
+            address="١ شارع الاختبار",
+        ),
+    ) == 1
+    assert writer.has_arabic_fields(source_url) is True
+    writer.close()
+
+    conn = get_connection(db_path)
+    row = conn.execute(
+        """SELECT business_name_ar, category_ar, governorate_ar, address_ar
+        FROM businesses WHERE source_url=?""",
+        (source_url,),
+    ).fetchone()
+    assert tuple(row) == ("مصنع الاختبار", "مصانع", "القاهرة", "١ شارع الاختبار")
+    conn.close()

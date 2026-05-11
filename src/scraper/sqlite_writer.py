@@ -73,6 +73,41 @@ class SQLiteWriter:
         ).fetchone()
         return row is not None
 
+    def has_arabic_fields(self, source_url: str) -> bool:
+        row = self._conn.execute(
+            """SELECT business_name_ar, address_ar
+            FROM businesses WHERE source_url=? LIMIT 1""",
+            (source_url,),
+        ).fetchone()
+        if row is None:
+            return False
+        return bool(row["business_name_ar"] or row["address_ar"])
+
+    def update_arabic_fields(self, source_url: str, arabic: ScrapeResult) -> int:
+        if not source_url:
+            return 0
+        try:
+            cursor = self._conn.execute(
+                """UPDATE businesses
+                SET business_name_ar=COALESCE(NULLIF(?, ''), business_name_ar),
+                    category_ar=COALESCE(NULLIF(?, ''), category_ar),
+                    governorate_ar=COALESCE(NULLIF(?, ''), governorate_ar),
+                    address_ar=COALESCE(NULLIF(?, ''), address_ar)
+                WHERE source_url=?""",
+                (
+                    arabic.business_name,
+                    arabic.category,
+                    arabic.governorate,
+                    arabic.address,
+                    source_url,
+                ),
+            )
+            self._conn.commit()
+            return cursor.rowcount
+        except Exception:
+            self._conn.rollback()
+            return 0
+
     def write_facets(self, source_url: str, facets: list[Facet]) -> int:
         """Attach newly discovered facets to an existing business without refetching details."""
         if not source_url or not facets:

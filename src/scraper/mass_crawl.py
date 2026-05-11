@@ -17,6 +17,7 @@ _TARGET_TABLES = {
     "brand": "brands",
     "keyword": "keywords",
 }
+ARABIC_ROLE_SEARCH_TERMS = {"مصنع", "مستورد", "موزع"}
 
 
 def _row_value(row: Any, key: str, index: int) -> Any:
@@ -141,6 +142,14 @@ def _mark_done(
         (pages, rows, job_id),
     )
     conn.commit()
+
+
+def _should_skip_done_job(target_type: str, target_slug: str, job: dict[str, Any]) -> bool:
+    if job["status"] != "done":
+        return False
+    if target_type in {"category", "keyword"} and target_slug in ARABIC_ROLE_SEARCH_TERMS:
+        return (job.get("rows_written") or 0) > 0
+    return True
 
 
 def _mark_failed(conn: Any, job_id: int, error: str, backend: Backend = "sqlite") -> None:
@@ -272,9 +281,17 @@ def run_mass_crawl(
     for target_type, target_slug in targets:
         for city in city_slugs:
             job = _get_or_create_job(conn, target_slug, city, target_type, backend)
-            if job["status"] == "done":
+            if _should_skip_done_job(target_type, target_slug, job):
                 log.info("job_skip_done", target_type=target_type, target=target_slug, city=city)
                 continue
+            if job["status"] == "done":
+                _mark_failed(
+                    conn,
+                    job["id"],
+                    "retrying zero-row Arabic role search job",
+                    backend,
+                )
+                job["status"] = "failed"
             if job["status"] == "running":
                 log.info(
                     "job_skip_running",

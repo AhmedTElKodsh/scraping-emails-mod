@@ -7,6 +7,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 ARABIC_ROLE_TERMS = ("مصنع", "مستورد", "موزع")
+ARABIC_ROLE_SEARCH_HREF = "/en/search/{}"
 
 
 def _connection_kwargs(database_url: str) -> dict[str, Any]:
@@ -155,13 +156,13 @@ def init_db(conn: Any) -> None:
             cur.execute(
                 """INSERT INTO categories (slug, name, parent_slug, result_count, href, scraped_at)
                 VALUES (%s, %s, '', 0, %s, '')
-                ON CONFLICT (slug) DO NOTHING""",
-                (term, term, f"/ar/keyword/{term}"),
+                ON CONFLICT (slug) DO UPDATE SET href=EXCLUDED.href""",
+                (term, term, ARABIC_ROLE_SEARCH_HREF.format(term)),
             )
             cur.execute(
                 """INSERT INTO keywords (slug, name, href, scraped_at)
                 VALUES (%s, %s, %s, '')
-                ON CONFLICT (slug) DO NOTHING""",
-                (term, term, f"/ar/keyword/{term}"),
+                ON CONFLICT (slug) DO UPDATE SET href=EXCLUDED.href""",
+                (term, term, ARABIC_ROLE_SEARCH_HREF.format(term)),
             )
     conn.commit()
