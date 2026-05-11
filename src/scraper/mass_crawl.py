@@ -1,12 +1,12 @@
-"""Mass crawl driver: loops (category, city) combos, writes to SQLite via ResultWriter."""
+"""Mass crawl driver: loops target/city combos, writes to configured storage."""
 
 from typing import Any
 
 import structlog
 
 from scraper.config import Settings
-from scraper.db import get_connection, init_db
 from scraper.sqlite_writer import SQLiteWriter
+from scraper.storage import Backend, open_connection, placeholder, storage_target
 
 log = structlog.get_logger()
 
@@ -19,13 +19,27 @@ _TARGET_TABLES = {
 }
 
 
-def _reset_stale_jobs(conn: Any) -> None:
+def _row_value(row: Any, key: str, index: int) -> Any:
+    try:
+        return row[key]
+    except (KeyError, TypeError, IndexError):
+        return row[index]
+
+
+def _reset_stale_jobs(conn: Any, backend: Backend = "sqlite") -> None:
     """Reset stale 'running' jobs to 'failed' on startup."""
-    conn.execute(
-        f"""UPDATE scrape_jobs SET status='failed', error='stale: process died'
-        WHERE status='running'
-        AND started_at < datetime('now', '-{_STALE_MINUTES} minutes', 'localtime')"""
-    )
+    if backend == "postgres":
+        conn.execute(
+            f"""UPDATE scrape_jobs SET status='failed', error='stale: process died'
+            WHERE status='running'
+            AND started_at < now() - interval '{_STALE_MINUTES} minutes'"""
+        )
+    else:
+        conn.execute(
+            f"""UPDATE scrape_jobs SET status='failed', error='stale: process died'
+            WHERE status='running'
+            AND started_at < datetime('now', '-{_STALE_MINUTES} minutes', 'localtime')"""
+        )
     conn.commit()
 
 
@@ -34,51 +48,108 @@ def _get_or_create_job(
     target_slug: str,
     city_slug: str = "",
     target_type: str = "category",
+    backend: Backend = "sqlite",
 ) -> dict[str, Any]:
     """Get existing job or create new pending job. Returns job dict."""
+    ph = placeholder(backend)
+    conflict = "ON CONFLICT DO NOTHING" if backend == "postgres" else "OR IGNORE"
     conn.execute(
-        """INSERT OR IGNORE INTO scrape_jobs
+        f"""INSERT {conflict if backend == "sqlite" else ""} INTO scrape_jobs
         (target_type, target_slug, category_slug, city_slug, status)
-        VALUES (?, ?, ?, ?, 'pending')""",
+        VALUES ({ph}, {ph}, {ph}, {ph}, 'pending')
+        {conflict if backend == "postgres" else ""}""",
         (target_type, target_slug, target_slug, city_slug),
     )
     row = conn.execute(
-        """SELECT id, status, pages_scraped, rows_written
+        f"""SELECT id, status, pages_scraped, rows_written
         FROM scrape_jobs
-        WHERE target_type=? AND target_slug=? AND city_slug=?""",
+        WHERE target_type={ph} AND target_slug={ph} AND city_slug={ph}""",
         (target_type, target_slug, city_slug),
     ).fetchone()
-    return {"id": row[0], "status": row[1], "pages_scraped": row[2], "rows_written": row[3]}
+    return {
+        "id": _row_value(row, "id", 0),
+        "status": _row_value(row, "status", 1),
+        "pages_scraped": _row_value(row, "pages_scraped", 2),
+        "rows_written": _row_value(row, "rows_written", 3),
+    }
 
 
-def _mark_running(conn: Any, job_id: int) -> None:
+def _mark_running(conn: Any, job_id: int, backend: Backend = "sqlite") -> None:
+    ph = placeholder(backend)
+    now_expr = "now()" if backend == "postgres" else "datetime('now', 'localtime')"
     conn.execute(
-        """UPDATE scrape_jobs
-        SET status='running', started_at=datetime('now', 'localtime'), error=''
-        WHERE id=?""",
+        f"""UPDATE scrape_jobs
+        SET status='running', started_at={now_expr}, error=''
+        WHERE id={ph}""",
         (job_id,),
     )
     conn.commit()
 
 
-def _mark_done(conn: Any, job_id: int, pages: int, rows: int) -> None:
+def _claim_job(conn: Any, job_id: int, backend: Backend = "sqlite") -> bool:
+    """Atomically claim a pending/failed job for this process."""
+    ph = placeholder(backend)
+    now_expr = "now()" if backend == "postgres" else "datetime('now', 'localtime')"
+    cursor = conn.execute(
+        f"""UPDATE scrape_jobs
+        SET status='running',
+            started_at={now_expr},
+            finished_at=NULL,
+            error='',
+            pages_scraped=0,
+            rows_written=0
+        WHERE id={ph} AND status IN ('pending', 'failed')""",
+        (job_id,),
+    )
+    conn.commit()
+    return bool(cursor.rowcount == 1)
+
+
+def _mark_progress(
+    conn: Any,
+    job_id: int,
+    pages: int,
+    rows: int,
+    backend: Backend = "sqlite",
+) -> None:
+    ph = placeholder(backend)
     conn.execute(
-        """UPDATE scrape_jobs
-        SET status='done',
-            finished_at=datetime('now', 'localtime'),
-            pages_scraped=?,
-            rows_written=?
-        WHERE id=?""",
+        f"""UPDATE scrape_jobs
+        SET pages_scraped={ph}, rows_written={ph}
+        WHERE id={ph} AND status='running'""",
         (pages, rows, job_id),
     )
     conn.commit()
 
 
-def _mark_failed(conn: Any, job_id: int, error: str) -> None:
+def _mark_done(
+    conn: Any,
+    job_id: int,
+    pages: int,
+    rows: int,
+    backend: Backend = "sqlite",
+) -> None:
+    ph = placeholder(backend)
+    now_expr = "now()" if backend == "postgres" else "datetime('now', 'localtime')"
     conn.execute(
-        """UPDATE scrape_jobs
-        SET status='failed', finished_at=datetime('now', 'localtime'), error=?
-        WHERE id=?""",
+        f"""UPDATE scrape_jobs
+        SET status='done',
+            finished_at={now_expr},
+            pages_scraped={ph},
+            rows_written={ph}
+        WHERE id={ph}""",
+        (pages, rows, job_id),
+    )
+    conn.commit()
+
+
+def _mark_failed(conn: Any, job_id: int, error: str, backend: Backend = "sqlite") -> None:
+    ph = placeholder(backend)
+    now_expr = "now()" if backend == "postgres" else "datetime('now', 'localtime')"
+    conn.execute(
+        f"""UPDATE scrape_jobs
+        SET status='failed', finished_at={now_expr}, error={ph}
+        WHERE id={ph}""",
         (error, job_id),
     )
     conn.commit()
@@ -88,6 +159,7 @@ def _load_targets(
     conn: Any,
     target_types: list[str],
     target_slugs_by_type: dict[str, list[str]] | None = None,
+    backend: Backend = "sqlite",
 ) -> list[tuple[str, str]]:
     targets: list[tuple[str, str]] = []
     target_slugs_by_type = target_slugs_by_type or {}
@@ -95,14 +167,14 @@ def _load_targets(
         table = _TARGET_TABLES[target_type]
         selected_slugs = target_slugs_by_type.get(target_type) or []
         if selected_slugs:
-            placeholders = ",".join("?" for _ in selected_slugs)
+            placeholders = ",".join(placeholder(backend) for _ in selected_slugs)
             rows = conn.execute(
                 f"SELECT slug FROM {table} WHERE slug IN ({placeholders}) ORDER BY name",
                 selected_slugs,
             ).fetchall()
         else:
             rows = conn.execute(f"SELECT slug FROM {table} ORDER BY name").fetchall()
-        targets.extend((target_type, row[0]) for row in rows)
+        targets.extend((target_type, _row_value(row, "slug", 0)) for row in rows)
     return targets
 
 
@@ -115,7 +187,7 @@ def _load_cities(conn: Any, mode: str) -> list[str]:
         WHERE type='city'
         ORDER BY result_count DESC, name{limit}"""
     ).fetchall()
-    return [row[0] for row in rows] or [""]
+    return [_row_value(row, "slug", 0) for row in rows] or [""]
 
 
 def run_mass_crawl(
@@ -134,15 +206,15 @@ def run_mass_crawl(
     if max_pages is None:
         max_pages = cfg.mass_crawl_max_pages
 
-    conn = get_connection(db_path or cfg.db_path)
-    init_db(conn)
+    active_target = storage_target(db_path, cfg)
+    conn, backend = open_connection(active_target)
 
-    _reset_stale_jobs(conn)
+    _reset_stale_jobs(conn, backend)
 
     if target_types is None:
         target_types = ["category"]
 
-    targets = _load_targets(conn, target_types, target_slugs_by_type)
+    targets = _load_targets(conn, target_types, target_slugs_by_type, backend)
     city_slugs = city_slugs if city_slugs is not None else _load_cities(conn, cities)
     if not city_slugs:
         city_slugs = [""]
@@ -153,12 +225,15 @@ def run_mass_crawl(
         return 0
 
     # Pre-populate scrape_jobs for all target/city combos
+    ph = placeholder(backend)
+    insert_ignore = "OR IGNORE " if backend == "sqlite" else ""
+    on_conflict = " ON CONFLICT DO NOTHING" if backend == "postgres" else ""
     for target_type, target_slug in targets:
         for city in city_slugs:
             conn.execute(
-                """INSERT OR IGNORE INTO scrape_jobs
+                f"""INSERT {insert_ignore}INTO scrape_jobs
                 (target_type, target_slug, category_slug, city_slug, status)
-                VALUES (?, ?, ?, ?, 'pending')""",
+                VALUES ({ph}, {ph}, {ph}, {ph}, 'pending'){on_conflict}""",
                 (target_type, target_slug, target_slug, city),
             )
     conn.commit()
@@ -176,7 +251,7 @@ def run_mass_crawl(
     from scraper.rate_limiter import RateLimiter
 
     tiers = [Tier1Client(), Tier2Client()]
-    if not headless:
+    if headless:
         from scraper.browser_client import Tier3Client
         tiers.append(Tier3Client(headless=headless))
     pipeline = Pipeline(tiers=tiers)
@@ -186,23 +261,49 @@ def run_mass_crawl(
     )
     proxy_pool = ProxyPool([], checker=lambda _: True)
 
-    writer = SQLiteWriter(db_path or cfg.db_path)
+    if backend == "postgres":
+        from scraper.postgres_writer import PostgresWriter
+
+        writer: Any = PostgresWriter(str(active_target))
+    else:
+        writer = SQLiteWriter(active_target)
 
     total_rows = 0
     for target_type, target_slug in targets:
         for city in city_slugs:
-            job = _get_or_create_job(conn, target_slug, city, target_type)
+            job = _get_or_create_job(conn, target_slug, city, target_type, backend)
             if job["status"] == "done":
                 log.info("job_skip_done", target_type=target_type, target=target_slug, city=city)
                 continue
-            if job["status"] == "failed":
-                conn.execute("UPDATE scrape_jobs SET status='pending' WHERE id=?", (job["id"],))
-                conn.commit()
+            if job["status"] == "running":
+                log.info(
+                    "job_skip_running",
+                    target_type=target_type,
+                    target=target_slug,
+                    city=city,
+                )
+                continue
+            if not _claim_job(conn, job["id"], backend):
+                log.info(
+                    "job_claim_missed",
+                    target_type=target_type,
+                    target=target_slug,
+                    city=city,
+                )
+                continue
 
-            _mark_running(conn, job["id"])
+            pages_scraped = 0
+            rows_written = 0
             try:
                 from scraper.sites.yellowpages_eg import scrape_target
-                pages_written = scrape_target(
+
+                def progress_callback(pages: int, rows: int) -> None:
+                    nonlocal pages_scraped, rows_written
+                    pages_scraped = pages
+                    rows_written = rows
+                    _mark_progress(conn, job["id"], pages_scraped, rows_written, backend)
+
+                rows_written = scrape_target(
                     target_type=target_type,
                     slug=target_slug,
                     city_slug=city or None,
@@ -212,17 +313,19 @@ def run_mass_crawl(
                     proxy_pool=proxy_pool,
                     max_pages=max_pages,
                     consecutive_empty_halt=cfg.consecutive_empty_halt,
+                    progress_callback=progress_callback,
                 )
-                _mark_done(conn, job["id"], max_pages, pages_written)
-                total_rows += pages_written
+                _mark_done(conn, job["id"], pages_scraped, rows_written, backend)
+                total_rows += rows_written
             except Exception as e:
-                _mark_failed(conn, job["id"], str(e))
+                error = f"{type(e).__name__}: {e}"
+                _mark_failed(conn, job["id"], error, backend)
                 log.error(
                     "job_failed",
                     target_type=target_type,
                     target=target_slug,
                     city=city,
-                    error=str(e),
+                    error=error,
                 )
 
     conn.close()
@@ -233,12 +336,17 @@ def run_mass_crawl(
 def _print_dry_run_summary(conn: Any) -> None:
     """Print job counts for dry-run mode."""
     rows = conn.execute(
-        """SELECT status, COUNT(*), SUM(pages_scraped), SUM(rows_written)
+        """SELECT status, COUNT(*) AS jobs,
+        SUM(pages_scraped) AS pages, SUM(rows_written) AS rows
         FROM scrape_jobs GROUP BY status"""
     ).fetchall()
     print("=== Dry Run: Job Summary ===")
     for row in rows:
-        print(f"  {row[0]}: {row[1]} jobs, {row[2] or 0} pages, {row[3] or 0} rows")
+        print(
+            f"  {_row_value(row, 'status', 0)}: {_row_value(row, 'jobs', 1)} jobs, "
+            f"{_row_value(row, 'pages', 2) or 0} pages, "
+            f"{_row_value(row, 'rows', 3) or 0} rows"
+        )
     pending = conn.execute("SELECT COUNT(*) FROM scrape_jobs WHERE status='pending'").fetchone()[0]
     print(f"  Total pending jobs: {pending}")
 

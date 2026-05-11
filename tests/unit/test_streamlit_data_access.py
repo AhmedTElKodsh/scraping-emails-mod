@@ -288,15 +288,25 @@ def test_load_crawl_progress_summarizes_queue_and_saved_data(tmp_path: Path) -> 
     conn.executescript(
         """
         INSERT INTO businesses (source_url, business_name)
-        VALUES ('https://example.com/1', 'One'), ('https://example.com/2', 'Two');
-
-        INSERT INTO scrape_jobs
-            (target_type, target_slug, category_slug, city_slug, status, rows_written)
         VALUES
-            ('category', 'restaurants', 'restaurants', 'cairo', 'done', 2),
-            ('brand', 'carrier', 'carrier', 'cairo', 'running', 0),
-            ('keyword', 'Advertising', 'Advertising', 'cairo', 'pending', 0),
-            ('category', 'hospitals', 'hospitals', 'giza', 'failed', 0);
+            ('https://example.com/1', 'One'),
+            ('https://example.com/2', 'Two');
+
+        INSERT INTO business_facets (source_url, facet_type, slug, name)
+        VALUES
+            ('https://example.com/1', 'brand', 'carrier', 'Carrier'),
+            ('https://example.com/1', 'city', 'cairo', 'Cairo'),
+            ('https://example.com/2', 'brand', 'carrier', 'Carrier');
+
+        INSERT INTO scrape_jobs (
+            target_type, target_slug, category_slug, city_slug,
+            status, pages_scraped, rows_written
+        )
+        VALUES
+            ('category', 'restaurants', 'restaurants', 'cairo', 'done', 4, 2),
+            ('brand', 'carrier', 'carrier', 'cairo', 'running', 3, 0),
+            ('keyword', 'Advertising', 'Advertising', 'cairo', 'pending', 0, 0),
+            ('category', 'hospitals', 'hospitals', 'giza', 'failed', 1, 0);
         """
     )
     conn.close()
@@ -308,6 +318,9 @@ def test_load_crawl_progress_summarizes_queue_and_saved_data(tmp_path: Path) -> 
     assert progress["running_jobs"] == 1
     assert progress["pending_jobs"] == 1
     assert progress["failed_jobs"] == 1
+    assert progress["pages_checked"] == 8
     assert progress["rows_written"] == 2
     assert progress["business_count"] == 2
+    assert progress["recent_business_count"] == 0
     assert progress["current_jobs"][0]["target_slug"] == "carrier"
+    assert progress["current_jobs"][0]["matching_saved_businesses"] == 1

@@ -1,11 +1,20 @@
 """Streamlit UI for saved Yellow Pages Egypt scrape results."""
 
+# ruff: noqa: E402
+
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from app.crawl_plan import build_crawl_plan
 from app.data_access import (
@@ -21,7 +30,45 @@ from scraper.config import Settings
 st.set_page_config(page_title="YP Egypt Scraper", layout="wide")
 
 cfg = Settings()
-DB_PATH = cfg.db_path
+DB_PATH = cfg.database_url or cfg.db_path
+AUTO_REFRESH_SECONDS = 15
+
+st.markdown(
+    """
+    <style>
+    .crawl-live {
+        align-items: center;
+        display: flex;
+        gap: 0.55rem;
+        margin: 0.25rem 0 0.6rem;
+    }
+    .crawl-spinner {
+        animation: crawlspin 0.9s linear infinite;
+        border: 2px solid rgba(49, 130, 206, 0.22);
+        border-top-color: #3182ce;
+        border-radius: 50%;
+        height: 0.9rem;
+        width: 0.9rem;
+    }
+    .crawl-live-text {
+        color: #8ec5ff;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    .crawl-detail {
+        color: rgba(250, 250, 250, 0.72);
+        font-size: 0.82rem;
+        line-height: 1.45;
+        margin-top: -0.25rem;
+    }
+    @keyframes crawlspin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 def _option_labels(rows: list[dict[str, Any]]) -> dict[str, str]:
@@ -103,8 +150,8 @@ with st.expander("Crawl Status"):
         for row in summary:
             st.write(
                 f"**{row['target_type']} / {row['status']}**: "
-                f"{row['jobs']} jobs, {row['pages_scraped'] or 0} pages, "
-                f"{row['rows_written'] or 0} rows"
+                f"{row['jobs']} jobs, {row['pages_scraped'] or 0} pages checked, "
+                f"{row['rows_written'] or 0} new rows"
             )
     else:
         st.info("No crawl jobs yet.")
@@ -148,22 +195,57 @@ if st.session_state.get("crawl_status_message"):
 if progress["total_jobs"]:
     completed = progress["done_jobs"]
     total = progress["total_jobs"]
-    ratio = min(completed / total, 1.0)
+    running_page_fraction = min(
+        progress["pages_checked"] / max(cfg.mass_crawl_max_pages, 1),
+        progress["running_jobs"],
+    )
+    ratio = min((completed + running_page_fraction) / total, 1.0)
     status_text = f"{completed:,} of {total:,} crawl jobs complete ({ratio:.1%})"
+    if active_crawl:
+        components.html(
+            f"""
+            <script>
+            window.setTimeout(function() {{
+                window.parent.location.reload();
+            }}, {AUTO_REFRESH_SECONDS * 1000});
+            </script>
+            """,
+            height=0,
+        )
+        st.sidebar.markdown(
+            f"""
+            <div class="crawl-live">
+                <span class="crawl-spinner"></span>
+                <span class="crawl-live-text">Crawler is adding data</span>
+            </div>
+            <div class="crawl-detail">
+                Auto-refreshes every {AUTO_REFRESH_SECONDS} seconds.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     st.sidebar.progress(ratio, text=status_text)
     st.sidebar.caption(
         f"{progress['business_count']:,} businesses saved | "
+        f"{progress['recent_business_count']:,} added in last 10 min | "
         f"{progress['running_jobs']:,} running | "
         f"{progress['pending_jobs']:,} queued | "
         f"{progress['failed_jobs']:,} failed"
     )
+    st.sidebar.caption("Rows count newly saved unique businesses; existing matches are skipped.")
     if active_crawl:
-        st.sidebar.info("Crawler is working in the background. Refresh to update progress.")
+        st.sidebar.info(
+            f"{progress['pages_checked']:,} pages checked and "
+            f"{progress['rows_written']:,} new rows recorded across the crawl queue."
+        )
     if progress["running_jobs"]:
         with st.sidebar.expander("Running Now", expanded=True):
             for job in progress["current_jobs"]:
                 city = job["city_slug"] or "all cities"
-                st.write(f"{job['target_type']}: {job['target_slug']} ({city})")
+                st.write(f"**{job['target_type']}**: {job['target_slug']} ({city})")
+                st.caption(
+                    f"{job.get('matching_saved_businesses', 0):,} saved matches available now"
+                )
     if progress["failed_jobs"]:
         st.sidebar.warning("Some crawl jobs failed. They will be retried on the next run.")
 

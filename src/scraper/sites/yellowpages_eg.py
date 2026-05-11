@@ -1,5 +1,6 @@
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -220,6 +221,7 @@ def scrape_category(
     proxy_pool: "ProxyPool | None" = None,
     max_pages: int = 50,
     consecutive_empty_halt: int = 5,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> int:
     return scrape_target(
         "category",
@@ -231,6 +233,7 @@ def scrape_category(
         proxy_pool=proxy_pool,
         max_pages=max_pages,
         consecutive_empty_halt=consecutive_empty_halt,
+        progress_callback=progress_callback,
     )
 
 
@@ -244,6 +247,7 @@ def scrape_target(
     proxy_pool: "ProxyPool | None" = None,
     max_pages: int = 50,
     consecutive_empty_halt: int = 5,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> int:
     from scraper.pipeline import BlockedError
 
@@ -274,6 +278,8 @@ def scrape_target(
         if not resp.ok:
             consecutive_empty += 1
             log.warning("non_ok_response", page=page_num, url=page_url, status=resp.status_code)
+            if progress_callback:
+                progress_callback(page_num, total_written)
             if consecutive_empty >= consecutive_empty_halt:
                 log.error("dom_drift_halt", consecutive=consecutive_empty, last_url=page_url)
                 break
@@ -284,6 +290,8 @@ def scrape_target(
         if not listing_cards:
             consecutive_empty += 1
             log.warning("empty_page", page=page_num, url=page_url, consecutive=consecutive_empty)
+            if progress_callback:
+                progress_callback(page_num, total_written)
             if consecutive_empty >= consecutive_empty_halt:
                 log.error("dom_drift_halt", consecutive=consecutive_empty, last_url=page_url)
                 break
@@ -354,5 +362,7 @@ def scrape_target(
             )
 
         rate_limiter.wait()
+        if progress_callback:
+            progress_callback(page_num, total_written)
 
     return total_written

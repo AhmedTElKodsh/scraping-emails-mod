@@ -142,3 +142,37 @@ def test_is_empty_page_false_for_results() -> None:
 
     html = (FIXTURES / "yp_list_page.html").read_text(encoding="utf-8")
     assert is_empty_page(html) is False
+
+
+def test_scrape_target_reports_progress_for_empty_pages() -> None:
+    from scraper.http_client import Response
+    from scraper.sites.yellowpages_eg import scrape_target
+
+    class EmptyPipeline:
+        def fetch(self, url, proxy=None, referer=None):  # type: ignore[no-untyped-def]
+            return Response(200, "<html><body>No listings</body></html>", {}, 1)
+
+    class NoopWriter:
+        def write(self, result):  # type: ignore[no-untyped-def]
+            return 1
+
+    class NoopRateLimiter:
+        def wait(self) -> None:
+            pass
+
+    progress: list[tuple[int, int]] = []
+
+    rows = scrape_target(
+        target_type="category",
+        slug="empty",
+        city_slug=None,
+        pipeline=EmptyPipeline(),  # type: ignore[arg-type]
+        csv_writer=NoopWriter(),  # type: ignore[arg-type]
+        rate_limiter=NoopRateLimiter(),  # type: ignore[arg-type]
+        max_pages=2,
+        consecutive_empty_halt=2,
+        progress_callback=lambda pages, written: progress.append((pages, written)),
+    )
+
+    assert rows == 0
+    assert progress == [(1, 0), (2, 0)]

@@ -14,6 +14,8 @@ def test_defaults_load_without_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.max_retries_per_tier == 3
     assert s.use_proxies is False
     assert s.output_dir == "output"
+    assert s.db_path == "data/scraper.sqlite"
+    assert s.acquisition_db_path == "data/acquisition.sqlite"
     assert s.consecutive_empty_halt == 5
 
 

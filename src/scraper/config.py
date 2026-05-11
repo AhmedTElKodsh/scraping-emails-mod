@@ -41,8 +41,10 @@ class Settings(BaseModel):
     browser_timeout_ms: int = Field(30000, ge=5000)
     browser_headless: bool = True
 
-    # SQLite + mass crawl
+    # Storage + mass crawl
+    database_url: str = ""
     db_path: str = "data/scraper.sqlite"
+    acquisition_db_path: str = "data/acquisition.sqlite"
     mass_crawl_max_pages: int = Field(20, ge=1)
     taxonomy_seed_path: str = "data/taxonomy_seed.json"
 
