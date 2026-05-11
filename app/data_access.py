@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from scraper.storage import Backend, open_connection, placeholder
+from scraper.taxonomy import load_seed, populate_from_seed
 
 
 def _open(db_path: str | Path) -> tuple[Any, Backend]:
@@ -98,6 +99,29 @@ def load_crawl_target_options(db_path: str | Path) -> dict[str, list[dict[str, A
         "keywords": load_taxonomy_options(db_path, "keywords"),
         "cities": load_locations(db_path, "city"),
     }
+
+
+def ensure_seed_taxonomy(db_path: str | Path, seed_path: str | Path) -> bool:
+    """Populate bundled taxonomy when a fresh deployment starts with an empty DB."""
+    conn, backend = _open(db_path)
+    try:
+        category_count = _scalar(
+            conn.execute("SELECT COUNT(*) AS value FROM categories").fetchone(),
+            "value",
+        )
+        city_count = _scalar(
+            conn.execute("SELECT COUNT(*) AS value FROM locations WHERE type='city'").fetchone(),
+            "value",
+        )
+        if category_count and city_count:
+            return False
+        if backend != "sqlite":
+            return False
+        seed = load_seed(seed_path)
+        populate_from_seed(conn, seed)
+        return bool(seed.get("categories") or seed.get("locations"))
+    finally:
+        conn.close()
 
 
 def load_locations(

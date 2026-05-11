@@ -21,6 +21,7 @@ import streamlit as st
 
 from app.crawl_plan import build_crawl_plan
 from app.data_access import (
+    ensure_seed_taxonomy,
     load_businesses,
     load_crawl_progress,
     load_crawl_target_options,
@@ -35,6 +36,10 @@ st.set_page_config(page_title="YP Egypt Scraper", layout="wide")
 cfg = Settings()
 DB_PATH = getattr(cfg, "database_url", "") or getattr(cfg, "db_path", "data/scraper.sqlite")
 AUTO_REFRESH_SECONDS = 15
+SEED_WAS_LOADED = ensure_seed_taxonomy(
+    DB_PATH,
+    getattr(cfg, "taxonomy_seed_path", "data/taxonomy_seed.json"),
+)
 
 st.markdown(
     """
@@ -126,6 +131,7 @@ def _start_crawl_thread(
                 runtime["last_result"] = run_mass_crawl(
                     db_path=db_path,
                     max_pages=max_pages,
+                    headless=False,
                     target_types=target_types,
                     target_slugs_by_type=target_slugs_by_type,
                     cities=cities,
@@ -151,6 +157,9 @@ def _crawl_runtime_snapshot() -> dict[str, Any]:
 
 
 st.sidebar.title("Filters")
+
+if SEED_WAS_LOADED:
+    st.sidebar.success("Loaded starter taxonomy for this fresh deployment.")
 
 filter_options = load_crawl_target_options(DB_PATH)
 category_options = _option_labels(filter_options["categories"])
