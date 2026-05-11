@@ -1,0 +1,36 @@
+name: Sync Documentation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'BRANCHES.md'
+      - 'docs/**'
+
+jobs:
+  sync-docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Sync BRANCHES.md to apollo-integration
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        
+        # Checkout apollo-integration
+        git checkout apollo-integration
+        
+        # Cherry-pick only BRANCHES.md from main
+        git checkout main -- BRANCHES.md
+        
+        # Commit if there are changes
+        if git diff --staged --quiet; then
+          echo "No changes to sync"
+        else
+          git commit -m "Sync BRANCHES.md from main"
+          git push origin apollo-integration
+        fi
