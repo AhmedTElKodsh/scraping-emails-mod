@@ -45,12 +45,6 @@ class Settings(BaseModel):
     database_url: str = ""
     db_path: str = "data/scraper.sqlite"
     acquisition_db_path: str = "data/acquisition.sqlite"
-    apollo_api_key: str = ""
-    apollo_api_base_url: str = "https://api.apollo.io/api/v1"
-    apollo_default_person_locations: str = (
-        "United States, United Kingdom, Canada, Australia, Germany, France, "
-        "United Arab Emirates, Saudi Arabia, Egypt"
-    )
     mass_crawl_max_pages: int = Field(20, ge=1)
     taxonomy_seed_path: str = "data/taxonomy_seed.json"
 

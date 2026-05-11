@@ -16,8 +16,6 @@ def test_defaults_load_without_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert s.output_dir == "output"
     assert s.db_path == "data/scraper.sqlite"
     assert s.acquisition_db_path == "data/acquisition.sqlite"
-    assert "United States" in s.apollo_default_person_locations
-    assert "Egypt" in s.apollo_default_person_locations
     assert s.consecutive_empty_halt == 5
 
 
