@@ -11,7 +11,16 @@ ARABIC_ROLE_TERMS = (
     "تصدير",
     "استيراد وتصدير",
 )
+PRIORITY_SEARCH_TERMS = (
+    "factory",
+    "import",
+    "export",
+    *ARABIC_ROLE_TERMS,
+)
 PRIORITY_SEARCH_HREFS = {
+    "factory": "/en/search/factory",
+    "import": "/en/search/import",
+    "export": "/en/search/export",
     "مصنع": "/en/search/factory",
     "استيراد": "/en/search/import",
     "تصدير": "/en/search/export",
@@ -25,8 +34,9 @@ def get_connection(db_path: str | Path | None = None) -> sqlite3.Connection:
         db_path = DEFAULT_DB_PATH
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path), check_same_thread=False)
+    conn = sqlite3.connect(str(db_path), timeout=30, check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -214,7 +224,7 @@ def _sync_location_facets_from_addresses(conn: sqlite3.Connection) -> None:
 
 
 def _seed_arabic_role_terms(conn: sqlite3.Connection) -> None:
-    for term in ARABIC_ROLE_TERMS:
+    for term in PRIORITY_SEARCH_TERMS:
         href = PRIORITY_SEARCH_HREFS.get(term, ARABIC_ROLE_SEARCH_HREF.format(term))
         conn.execute(
             """INSERT OR IGNORE INTO categories

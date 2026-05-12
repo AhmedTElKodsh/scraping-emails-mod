@@ -39,6 +39,12 @@ def test_build_target_url_for_category_brand_and_keyword() -> None:
     assert build_target_url("keyword", "Air-Condition", page=1) == (
         "https://yellowpages.com.eg/en/keyword/Air-Condition"
     )
+    assert build_target_url("keyword", "import", page=1) == (
+        "https://yellowpages.com.eg/en/search/import"
+    )
+    assert build_target_url("keyword", "export", page=2) == (
+        "https://yellowpages.com.eg/en/search/export/p2"
+    )
     assert build_target_url("keyword", "مصنع", page=1) == (
         "https://yellowpages.com.eg/en/search/factory"
     )

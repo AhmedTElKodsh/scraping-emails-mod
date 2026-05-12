@@ -324,7 +324,7 @@ def run_mass_crawl(
 
         writer: Any = PostgresWriter(str(active_target))
     else:
-        writer = SQLiteWriter(active_target)
+        writer = SQLiteWriter(active_target, conn=conn)
 
     total_rows = 0
     for target_type, target_slug in targets:

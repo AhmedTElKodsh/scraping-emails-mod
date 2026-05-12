@@ -3,6 +3,7 @@
 Persistent cross-run dedup via DB constraint (INSERT OR IGNORE on source_url).
 """
 
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -14,15 +15,36 @@ class SQLiteWriter:
     """Writes results to SQLite. Implements ResultWriter Protocol.
     Persistent dedup via INSERT OR IGNORE on source_url."""
 
-    def __init__(self, db_path: str | Path | None = None) -> None:
-        self._conn = get_connection(db_path)
+    def __init__(
+        self,
+        db_path: str | Path | None = None,
+        conn: sqlite3.Connection | None = None,
+    ) -> None:
+        self._owns_connection = conn is None
+        self._conn = conn or get_connection(db_path)
         from scraper.db import init_db
+
         init_db(self._conn)
+
+    def _first_facet_value(self, result: ScrapeResult, facet_type: str, field: str) -> str:
+        for facet in result.facets:
+            if facet.type == facet_type:
+                value = getattr(facet, field)
+                if value:
+                    return value
+        return ""
 
     def write(self, result: ScrapeResult) -> int:
         """Write result. Returns 1 if inserted, 0 if duplicate (source_url conflict)."""
         try:
             now = (result.scraped_at or datetime.now(UTC).isoformat())
+            category_slug = result.category or self._first_facet_value(result, "category", "slug")
+            category_ar = result.category_ar or self._first_facet_value(
+                result,
+                "category",
+                "name_ar",
+            )
+            city_slug = result.governorate or self._first_facet_value(result, "city", "slug")
             cursor = self._conn.execute(
                 """INSERT OR IGNORE INTO businesses
                 (source_url, business_name, business_name_ar,
@@ -34,9 +56,9 @@ class SQLiteWriter:
                     result.url,
                     result.business_name,
                     result.business_name_ar,
-                    result.category,
-                    result.category_ar,
-                    result.governorate,
+                    category_slug,
+                    category_ar,
+                    city_slug,
                     result.governorate_ar,
                     result.phone,
                     ",".join(result.emails) if result.emails else "",
@@ -137,4 +159,5 @@ class SQLiteWriter:
             return 0
 
     def close(self) -> None:
-        self._conn.close()
+        if self._owns_connection:
+            self._conn.close()

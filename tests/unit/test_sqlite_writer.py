@@ -140,3 +140,57 @@ def test_update_arabic_fields_backfills_existing_business(tmp_path: Path) -> Non
     ).fetchone()
     assert tuple(row) == ("مصنع الاختبار", "مصانع", "القاهرة", "١ شارع الاختبار")
     conn.close()
+
+
+def test_sqlite_writer_can_share_existing_connection(tmp_path: Path) -> None:
+    from scraper.db import get_connection, init_db
+    from scraper.sqlite_writer import SQLiteWriter
+
+    conn = get_connection(tmp_path / "shared.sqlite")
+    init_db(conn)
+    writer = SQLiteWriter(conn=conn)
+
+    rows = writer.write(
+        ScrapeResult(
+            url="https://example.com/shared",
+            business_name="Shared Connection",
+        )
+    )
+    writer.close()
+
+    assert rows == 1
+    assert conn.execute("SELECT COUNT(*) FROM businesses").fetchone()[0] == 1
+    conn.close()
+
+
+def test_write_backfills_business_category_and_city_from_facets(tmp_path: Path) -> None:
+    from scraper.db import get_connection
+    from scraper.sqlite_writer import SQLiteWriter
+
+    db_path = tmp_path / "test.sqlite"
+    writer = SQLiteWriter(db_path)
+    writer.write(
+        ScrapeResult(
+            url="https://example.com/faceted",
+            business_name="Faceted Biz",
+            facets=[
+                Facet(
+                    type="category",
+                    slug="import-&-export",
+                    name="Import & Export",
+                    name_ar="استيراد وتصدير",
+                ),
+                Facet(type="city", slug="cairo", name="Cairo"),
+            ],
+        )
+    )
+    writer.close()
+
+    conn = get_connection(db_path)
+    row = conn.execute(
+        """SELECT category_slug, category_ar, city_slug
+        FROM businesses WHERE source_url=?""",
+        ("https://example.com/faceted",),
+    ).fetchone()
+    assert tuple(row) == ("import-&-export", "استيراد وتصدير", "cairo")
+    conn.close()

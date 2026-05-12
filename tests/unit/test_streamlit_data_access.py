@@ -577,8 +577,16 @@ def test_streamlit_full_crawl_uses_http_tiers_only(monkeypatch, tmp_path: Path) 
     assert captured["headless"] is False
     assert captured["target_types"] == ["category", "keyword"]
     assert captured["target_slugs_by_type"] == {
-        "category": ["استيراد وتصدير", "مصنع"],
-        "keyword": ["استيراد", "استيراد وتصدير", "تصدير", "مصنع"],
+        "category": ["factory", "استيراد وتصدير", "مصنع"],
+        "keyword": [
+            "export",
+            "factory",
+            "import",
+            "استيراد",
+            "استيراد وتصدير",
+            "تصدير",
+            "مصنع",
+        ],
     }
     assert captured["city_slugs"] is None
     os.environ.pop("DB_PATH", None)

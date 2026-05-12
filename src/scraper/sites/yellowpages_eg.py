@@ -30,6 +30,9 @@ ARABIC_ROLE_SEARCH_TERMS = {
     "استيراد وتصدير",
 }
 SEARCH_ALIASES = {
+    "factory": "factory",
+    "import": "import",
+    "export": "export",
     "مصنع": "factory",
     "استيراد": "import",
     "تصدير": "export",

@@ -13,10 +13,25 @@ class PostgresWriter:
         self._conn = get_connection(database_url)
         init_db(self._conn)
 
+    def _first_facet_value(self, result: ScrapeResult, facet_type: str, field: str) -> str:
+        for facet in result.facets:
+            if facet.type == facet_type:
+                value = getattr(facet, field)
+                if value:
+                    return value
+        return ""
+
     def write(self, result: ScrapeResult) -> int:
         """Write result. Returns 1 if anything new was inserted, otherwise 0."""
         try:
             now = result.scraped_at or datetime.now(UTC).isoformat()
+            category_slug = result.category or self._first_facet_value(result, "category", "slug")
+            category_ar = result.category_ar or self._first_facet_value(
+                result,
+                "category",
+                "name_ar",
+            )
+            city_slug = result.governorate or self._first_facet_value(result, "city", "slug")
             cursor = self._conn.execute(
                 """INSERT INTO businesses
                 (source_url, business_name, business_name_ar,
@@ -29,9 +44,9 @@ class PostgresWriter:
                     result.url,
                     result.business_name,
                     result.business_name_ar,
-                    result.category,
-                    result.category_ar,
-                    result.governorate,
+                    category_slug,
+                    category_ar,
+                    city_slug,
                     result.governorate_ar,
                     result.phone,
                     ",".join(result.emails) if result.emails else "",

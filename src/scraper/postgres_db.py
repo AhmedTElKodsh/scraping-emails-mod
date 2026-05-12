@@ -12,7 +12,16 @@ ARABIC_ROLE_TERMS = (
     "تصدير",
     "استيراد وتصدير",
 )
+PRIORITY_SEARCH_TERMS = (
+    "factory",
+    "import",
+    "export",
+    *ARABIC_ROLE_TERMS,
+)
 PRIORITY_SEARCH_HREFS = {
+    "factory": "/en/search/factory",
+    "import": "/en/search/import",
+    "export": "/en/search/export",
     "مصنع": "/en/search/factory",
     "استيراد": "/en/search/import",
     "تصدير": "/en/search/export",
@@ -181,7 +190,7 @@ def init_db(conn: Any) -> None:
         for column in ("business_name_ar", "category_ar", "governorate_ar", "address_ar"):
             _add_column_if_missing(cur, "businesses", column, "TEXT DEFAULT ''")
         _add_column_if_missing(cur, "business_facets", "name_ar", "TEXT DEFAULT ''")
-        for term in ARABIC_ROLE_TERMS:
+        for term in PRIORITY_SEARCH_TERMS:
             href = PRIORITY_SEARCH_HREFS.get(term, ARABIC_ROLE_SEARCH_HREF.format(term))
             cur.execute(
                 """INSERT INTO categories (slug, name, parent_slug, result_count, href, scraped_at)
