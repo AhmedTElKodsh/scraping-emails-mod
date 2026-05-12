@@ -56,14 +56,16 @@ def test_init_seeds_arabic_role_terms_as_categories_and_keywords(tmp_path: Path)
     keywords = conn.execute("SELECT slug, name, href FROM keywords ORDER BY slug").fetchall()
 
     assert {tuple(row) for row in categories} >= {
-        ("مصنع", "مصنع", "/en/search/مصنع"),
-        ("مستورد", "مستورد", "/en/search/مستورد"),
-        ("موزع", "موزع", "/en/search/موزع"),
+        ("استيراد", "استيراد", "/en/search/import"),
+        ("استيراد وتصدير", "استيراد وتصدير", "/en/category/import-&-export"),
+        ("مصنع", "مصنع", "/en/search/factory"),
+        ("تصدير", "تصدير", "/en/search/export"),
     }
     assert {tuple(row) for row in keywords} >= {
-        ("مصنع", "مصنع", "/en/search/مصنع"),
-        ("مستورد", "مستورد", "/en/search/مستورد"),
-        ("موزع", "موزع", "/en/search/موزع"),
+        ("استيراد", "استيراد", "/en/search/import"),
+        ("استيراد وتصدير", "استيراد وتصدير", "/en/category/import-&-export"),
+        ("مصنع", "مصنع", "/en/search/factory"),
+        ("تصدير", "تصدير", "/en/search/export"),
     }
     conn.close()
 

@@ -285,8 +285,11 @@ def init_acquisition_db(conn: sqlite3.Connection) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             source_url TEXT NOT NULL DEFAULT '',
             business_name TEXT NOT NULL DEFAULT '',
+            business_name_ar TEXT DEFAULT '',
             category_slug TEXT DEFAULT '',
+            category_ar TEXT DEFAULT '',
             city_slug TEXT DEFAULT '',
+            governorate_ar TEXT DEFAULT '',
             phone TEXT DEFAULT '',
             email TEXT DEFAULT '',
             normalized_business_name TEXT NOT NULL DEFAULT '',
@@ -294,6 +297,7 @@ def init_acquisition_db(conn: sqlite3.Connection) -> None:
             facebook_url TEXT DEFAULT '',
             domain TEXT NOT NULL DEFAULT '',
             address TEXT NOT NULL DEFAULT '',
+            address_ar TEXT DEFAULT '',
             raw_html_hash TEXT DEFAULT '',
             source_tier TEXT DEFAULT '',
             scraped_at TEXT,
@@ -361,9 +365,13 @@ def init_acquisition_db(conn: sqlite3.Connection) -> None:
             UNIQUE(suppression_type, suppression_value)
         );
     """)
+    _add_column_if_missing(conn, "businesses", "business_name_ar", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "businesses", "category_slug", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "businesses", "category_ar", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "businesses", "city_slug", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "businesses", "governorate_ar", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "businesses", "facebook_url", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "businesses", "address_ar", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "businesses", "raw_html_hash", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "businesses", "source_tier", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "businesses", "scraped_at", "TEXT")

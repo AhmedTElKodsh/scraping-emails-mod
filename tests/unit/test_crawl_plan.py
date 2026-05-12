@@ -1,14 +1,31 @@
 from app.crawl_plan import build_crawl_plan
 
 
-def test_full_dataset_crawl_uses_all_targets_and_all_cities() -> None:
+def test_full_dataset_crawl_uses_category_and_keyword_targets() -> None:
     plan = build_crawl_plan({}, [])
 
-    assert plan.target_types == ["category", "brand", "keyword"]
+    assert plan.target_types == ["category", "keyword"]
     assert plan.target_slugs_by_type is None
     assert plan.cities == "all"
     assert plan.city_slugs is None
     assert plan.is_scoped is False
+
+
+def test_default_scoped_targets_limit_full_crawl() -> None:
+    plan = build_crawl_plan(
+        {},
+        [],
+        {"category": ["import-&-export"], "keyword": ["مصنع", "استيراد", "تصدير"]},
+    )
+
+    assert plan.target_types == ["category", "keyword"]
+    assert plan.target_slugs_by_type == {
+        "category": ["import-&-export"],
+        "keyword": ["مصنع", "استيراد", "تصدير"],
+    }
+    assert plan.cities == "all"
+    assert plan.city_slugs is None
+    assert plan.is_scoped is True
 
 
 def test_selected_target_without_city_still_covers_every_city() -> None:
@@ -24,7 +41,7 @@ def test_selected_target_without_city_still_covers_every_city() -> None:
 def test_selected_cities_scope_all_targets_to_those_cities() -> None:
     plan = build_crawl_plan({}, ["cairo", "giza"])
 
-    assert plan.target_types == ["category", "brand", "keyword"]
+    assert plan.target_types == ["category", "keyword"]
     assert plan.target_slugs_by_type is None
     assert plan.cities == "none"
     assert plan.city_slugs == ["cairo", "giza"]

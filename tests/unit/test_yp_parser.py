@@ -40,10 +40,10 @@ def test_build_target_url_for_category_brand_and_keyword() -> None:
         "https://yellowpages.com.eg/en/keyword/Air-Condition"
     )
     assert build_target_url("keyword", "مصنع", page=1) == (
-        "https://yellowpages.com.eg/en/search/%D9%85%D8%B5%D9%86%D8%B9"
+        "https://yellowpages.com.eg/en/search/factory"
     )
-    assert build_target_url("category", "مستورد", page=2) == (
-        "https://yellowpages.com.eg/en/search/%D9%85%D8%B3%D8%AA%D9%88%D8%B1%D8%AF/p2"
+    assert build_target_url("category", "استيراد", page=2, language="ar") == (
+        "https://yellowpages.com.eg/ar/search/import/p2"
     )
 
 
@@ -66,6 +66,26 @@ def test_parse_listing_cards_extracts_profile_url_and_visible_facets() -> None:
         ("category", "air-conditioning", "Air Conditioning"),
         ("keyword", "central-ac-duct-works", "Central AC Duct Works"),
         ("brand", "carrier", "Carrier"),
+    }
+
+
+def test_parse_listing_cards_normalizes_arabic_profile_and_facets() -> None:
+    from scraper.sites.yellowpages_eg import parse_listing_cards
+
+    html = """
+    <div class="result-item">
+      <a href="//yellowpages.com.eg/ar/profile/cool-air/123?position=1">مصنع القاهرة</a>
+      <a href="/ar/category/import-&-export">استيراد وتصدير</a>
+      <a href="/ar/keyword/Export">تصدير</a>
+    </div>
+    """
+
+    cards = parse_listing_cards(html)
+
+    assert cards[0].url == "https://yellowpages.com.eg/en/profile/cool-air/123"
+    assert {(facet.type, facet.slug, facet.name_ar) for facet in cards[0].facets} == {
+        ("category", "import-&-export", "استيراد وتصدير"),
+        ("keyword", "Export", "تصدير"),
     }
 
 

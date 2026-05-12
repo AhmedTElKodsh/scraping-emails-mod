@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 import structlog
 import typer
 
+from scraper.storage import storage_target
+
 if TYPE_CHECKING:
     from scraper.pipeline import Pipeline
     from scraper.proxy_pool import ProxyPool
@@ -178,9 +180,10 @@ def taxonomy(
     from scraper.taxonomy import init_taxonomy
 
     cfg = Settings()
+    active_target = storage_target(db_path, cfg)
     typer.echo(f"Initializing taxonomy (seed-only={seed_only})...")
     init_taxonomy(
-        db_path=db_path or cfg.db_path,
+        db_path=active_target,
         seed_path=cfg.taxonomy_seed_path,
         live_refresh=not seed_only,
     )
@@ -212,7 +215,7 @@ def crawl_all(
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1)
     total = run_mass_crawl(
-        db_path=db_path or cfg.db_path,
+        db_path=db_path,
         max_pages=max_pages or cfg.mass_crawl_max_pages,
         use_proxies=use_proxies,
         headless=not no_browser,

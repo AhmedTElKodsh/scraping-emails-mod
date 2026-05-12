@@ -113,7 +113,7 @@ def test_load_businesses_arabic_role_keyword_matches_category_facet(tmp_path: Pa
         INSERT INTO business_facets (source_url, facet_type, slug, name)
         VALUES
             ('https://example.com/1', 'category', 'مصنع', 'مصنع'),
-            ('https://example.com/2', 'category', 'موزع', 'موزع');
+            ('https://example.com/2', 'category', 'تصدير', 'تصدير');
         """
     )
     conn.close()
@@ -128,6 +128,77 @@ def test_load_businesses_arabic_role_keyword_matches_category_facet(tmp_path: Pa
         {"slug": row["slug"], "name": row["name"]} for row in options["keywords"]
     ]
     assert [row["business_name"] for row in rows] == ["Factory One"]
+
+
+def test_search_facets_preserves_same_slug_across_category_and_keyword(
+    tmp_path: Path,
+) -> None:
+    from app.data_access import search_facet_suggestions
+    from scraper.db import get_connection, init_db
+
+    db_path = tmp_path / "test.sqlite"
+    conn = get_connection(db_path)
+    init_db(conn)
+    conn.executescript(
+        """
+        INSERT INTO businesses (source_url, business_name)
+        VALUES
+            ('https://example.com/1', 'Importer One'),
+            ('https://example.com/2', 'Importer Two');
+
+        INSERT INTO business_facets (source_url, facet_type, slug, name)
+        VALUES
+            ('https://example.com/1', 'category', 'استيراد-وتصدير', 'استيراد وتصدير'),
+            ('https://example.com/1', 'keyword', 'استيراد-وتصدير', 'استيراد وتصدير'),
+            ('https://example.com/2', 'keyword', 'استيراد-وتصدير', 'استيراد وتصدير');
+        """
+    )
+    conn.close()
+
+    rows = search_facet_suggestions(db_path, "استيراد")
+
+    assert rows[:2] == [
+        {
+            "facet_type": "keyword",
+            "slug": "استيراد-وتصدير",
+            "name": "استيراد وتصدير",
+            "count": 2,
+        },
+        {
+            "facet_type": "category",
+            "slug": "استيراد-وتصدير",
+            "name": "استيراد وتصدير",
+            "count": 1,
+        },
+    ]
+
+
+def test_load_businesses_search_query_prefers_facet_matches(tmp_path: Path) -> None:
+    from app.data_access import load_businesses
+    from scraper.db import get_connection, init_db
+
+    db_path = tmp_path / "test.sqlite"
+    conn = get_connection(db_path)
+    init_db(conn)
+    conn.executescript(
+        """
+        INSERT INTO businesses (source_url, business_name, address)
+        VALUES
+            ('https://example.com/1', 'Alpha Trade', 'Cairo'),
+            ('https://example.com/2', 'Importers Hub', 'Giza'),
+            ('https://example.com/3', 'General Supply', 'Alexandria');
+
+        INSERT INTO business_facets (source_url, facet_type, slug, name)
+        VALUES
+            ('https://example.com/1', 'keyword', 'import-export', 'Import Export'),
+            ('https://example.com/3', 'city', 'cairo', 'Cairo');
+        """
+    )
+    conn.close()
+
+    rows = load_businesses(db_path, search_query="import")
+
+    assert [row["business_name"] for row in rows] == ["Alpha Trade", "Importers Hub"]
 
 
 def test_load_matching_jobs_filters_selected_targets_and_city(tmp_path: Path) -> None:
@@ -164,6 +235,7 @@ def test_load_matching_jobs_filters_selected_targets_and_city(tmp_path: Path) ->
             "city_slug": "cairo",
             "status": "done",
             "rows_written": 7,
+            "matching_saved_businesses": 0,
         },
         {
             "target_type": "category",
@@ -171,6 +243,7 @@ def test_load_matching_jobs_filters_selected_targets_and_city(tmp_path: Path) ->
             "city_slug": "cairo",
             "status": "done",
             "rows_written": 10,
+            "matching_saved_businesses": 0,
         }
     ]
 
@@ -345,11 +418,21 @@ def test_load_crawl_target_options_returns_scraped_taxonomy_items(tmp_path: Path
 
     options = load_crawl_target_options(db_path)
 
-    assert [row["slug"] for row in options["categories"]][:2] == ["atms", "restaurants"]
-    assert {row["slug"] for row in options["categories"]} >= {"مصنع", "مستورد", "موزع"}
-    assert [row["slug"] for row in options["brands"]] == ["carrier", "sony"]
-    assert [row["slug"] for row in options["keywords"]][:2] == ["air-condition", "compressor"]
-    assert {row["slug"] for row in options["keywords"]} >= {"مصنع", "مستورد", "موزع"}
+    assert {row["slug"] for row in options["categories"]} >= {
+        "استيراد وتصدير",
+        "مصنع",
+    }
+    assert {"atms", "restaurants"}.isdisjoint({row["slug"] for row in options["categories"]})
+    assert options["brands"] == []
+    assert {row["slug"] for row in options["keywords"]} >= {
+        "استيراد",
+        "استيراد وتصدير",
+        "مصنع",
+        "تصدير",
+    }
+    assert {"air-condition", "compressor"}.isdisjoint(
+        {row["slug"] for row in options["keywords"]}
+    )
     assert options["cities"] == [{"slug": "cairo", "name": "Cairo"}]
 
 
@@ -361,7 +444,7 @@ def test_ensure_seed_taxonomy_populates_empty_deployment_db(tmp_path: Path) -> N
     seed_path = tmp_path / "seed.json"
     seed_path.write_text(
         """{
-          "categories": [{"slug": "restaurants", "name": "Restaurants"}],
+          "categories": [{"slug": "import-&-export", "name": "Import & Export"}],
           "locations": [{"slug": "cairo", "name": "Cairo", "type": "city"}],
           "brands": [],
           "keywords": []
@@ -375,7 +458,7 @@ def test_ensure_seed_taxonomy_populates_empty_deployment_db(tmp_path: Path) -> N
     assert ensure_seed_taxonomy(db_path, seed_path) is True
 
     options = load_crawl_target_options(db_path)
-    assert options["categories"][0]["slug"] == "restaurants"
+    assert options["categories"][0]["slug"] == "import-&-export"
     assert options["cities"] == [{"slug": "cairo", "name": "Cairo"}]
 
 
@@ -439,7 +522,7 @@ def test_ensure_seed_taxonomy_populates_empty_postgres_backend(
     seed_path = tmp_path / "seed.json"
     seed_path.write_text(
         """{
-          "categories": [{"slug": "restaurants", "name": "Restaurants"}],
+          "categories": [{"slug": "import-&-export", "name": "Import & Export"}],
           "locations": [{"slug": "cairo", "name": "Cairo", "type": "city"}],
           "brands": [{"slug": "carrier", "name": "Carrier"}],
           "keywords": [{"slug": "air-condition", "name": "Air Condition"}]
@@ -482,18 +565,24 @@ def test_streamlit_full_crawl_uses_http_tiers_only(monkeypatch, tmp_path: Path) 
         return 0
 
     monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("DATABASE_URL", "")
     monkeypatch.setenv("TAXONOMY_SEED_PATH", str(seed_path))
     monkeypatch.setattr("scraper.mass_crawl.run_mass_crawl", fake_run_mass_crawl)
 
     at = AppTest.from_file("app/streamlit_app.py")
     at.run(timeout=60)
-    button = next(item for item in at.button if item.label == "Run Full Dataset Crawl")
+    button = next(item for item in at.button if item.label == "Run Scoped Crawl")
     button.click().run(timeout=60)
 
     assert captured["headless"] is False
-    assert captured["target_types"] == ["category", "brand", "keyword"]
+    assert captured["target_types"] == ["category", "keyword"]
+    assert captured["target_slugs_by_type"] == {
+        "category": ["استيراد وتصدير", "مصنع"],
+        "keyword": ["استيراد", "استيراد وتصدير", "تصدير", "مصنع"],
+    }
     assert captured["city_slugs"] is None
     os.environ.pop("DB_PATH", None)
+    os.environ.pop("DATABASE_URL", None)
     os.environ.pop("TAXONOMY_SEED_PATH", None)
 
 
@@ -507,7 +596,7 @@ def test_streamlit_cloud_entrypoint_reruns_real_app(
     seed_path = tmp_path / "seed.json"
     seed_path.write_text(
         """{
-          "categories": [{"slug": "restaurants", "name": "Restaurants"}],
+          "categories": [{"slug": "import-&-export", "name": "Import & Export"}],
           "locations": [{"slug": "cairo", "name": "Cairo", "type": "city"}],
           "brands": [],
           "keywords": []
@@ -515,6 +604,7 @@ def test_streamlit_cloud_entrypoint_reruns_real_app(
         encoding="utf-8",
     )
     monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("DATABASE_URL", "")
     monkeypatch.setenv("TAXONOMY_SEED_PATH", str(seed_path))
 
     at = AppTest.from_file("streamlit_app.py")

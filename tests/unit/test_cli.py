@@ -116,6 +116,7 @@ def test_crawl_all_no_browser_disables_browser_fallback(monkeypatch: pytest.Monk
 
     assert result.exit_code == 0
     assert captured["headless"] is False
+    assert captured["db_path"] is None
 
 
 def test_acquisition_ui_command_launches_separate_app(monkeypatch: pytest.MonkeyPatch) -> None:

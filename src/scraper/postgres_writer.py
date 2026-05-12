@@ -89,7 +89,7 @@ class PostgresWriter:
                 ),
             )
             self._conn.commit()
-            return cursor.rowcount
+            return int(cursor.rowcount or 0)
         except Exception:
             self._conn.rollback()
             return 0
@@ -110,10 +110,12 @@ class PostgresWriter:
                     continue
                 cursor = self._conn.execute(
                     """INSERT INTO business_facets
-                    (source_url, facet_type, slug, name)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (source_url, facet_type, slug) DO NOTHING""",
-                    (source_url, facet.type, facet.slug, facet.name),
+                    (source_url, facet_type, slug, name, name_ar)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (source_url, facet_type, slug) DO UPDATE SET
+                        name=COALESCE(NULLIF(EXCLUDED.name, ''), business_facets.name),
+                        name_ar=COALESCE(NULLIF(EXCLUDED.name_ar, ''), business_facets.name_ar)""",
+                    (source_url, facet.type, facet.slug, facet.name, facet.name_ar),
                 )
                 saved_rows += cursor.rowcount
             if commit:

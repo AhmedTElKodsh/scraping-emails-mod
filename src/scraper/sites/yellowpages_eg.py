@@ -23,7 +23,18 @@ log = structlog.get_logger()
 
 BASE_URL = "https://yellowpages.com.eg"
 TARGET_TYPES = {"category", "brand", "keyword"}
-ARABIC_ROLE_SEARCH_TERMS = {"مصنع", "مستورد", "موزع"}
+ARABIC_ROLE_SEARCH_TERMS = {
+    "مصنع",
+    "استيراد",
+    "تصدير",
+    "استيراد وتصدير",
+}
+SEARCH_ALIASES = {
+    "مصنع": "factory",
+    "استيراد": "import",
+    "تصدير": "export",
+}
+CATEGORY_ALIASES = {"استيراد وتصدير": "import-&-export"}
 
 # Site-wide footer/chrome emails that appear on every profile — never per-business.
 _EMAIL_DENYLIST = {"customercare@yellow.com.eg"}
@@ -57,16 +68,28 @@ def build_target_url(
     slug: str,
     page: int = 1,
     city_slug: str | None = None,
+    language: str = "en",
 ) -> str:
     if target_type not in TARGET_TYPES:
         raise ValueError(f"Unsupported target_type: {target_type}")
-    encoded_slug = quote(slug, safe="-&")
-    if slug in ARABIC_ROLE_SEARCH_TERMS and target_type in {"category", "keyword"}:
-        path = f"/en/search/{encoded_slug}" if page == 1 else f"/en/search/{encoded_slug}/p{page}"
+    if language not in {"en", "ar"}:
+        raise ValueError(f"Unsupported language: {language}")
+    target_slug = SEARCH_ALIASES.get(slug, CATEGORY_ALIASES.get(slug, slug))
+    encoded_slug = quote(target_slug, safe="-&")
+    if slug in SEARCH_ALIASES and target_type in {"category", "keyword"}:
+        path = (
+            f"/{language}/search/{encoded_slug}"
+            if page == 1
+            else f"/{language}/search/{encoded_slug}/p{page}"
+        )
     elif target_type == "keyword":
-        path = f"/en/keyword/{encoded_slug}" if page == 1 else f"/en/keyword/{encoded_slug}/p{page}"
+        path = (
+            f"/{language}/keyword/{encoded_slug}"
+            if page == 1
+            else f"/{language}/keyword/{encoded_slug}/p{page}"
+        )
     else:
-        path = f"/en/{target_type}/{encoded_slug}/p{page}"
+        path = f"/{language}/{target_type}/{encoded_slug}/p{page}"
     qs = f"?{urlencode({'city': city_slug})}" if city_slug else ""
     return f"{BASE_URL}{path}{qs}"
 
@@ -81,6 +104,10 @@ def _normalize_href(href: str) -> str:
     return href
 
 
+def _canonical_profile_url(url: str) -> str:
+    return url.replace("/ar/profile/", "/en/profile/", 1)
+
+
 def parse_listing_urls(html: str) -> list[str]:
     return [card.url for card in parse_listing_cards(html)]
 
@@ -88,11 +115,14 @@ def parse_listing_urls(html: str) -> list[str]:
 def _facet_from_href(href: str, name: str) -> Facet | None:
     path = href.split("?", 1)[0].split("#", 1)[0].rstrip("/")
     for facet_type in TARGET_TYPES:
-        marker = f"/en/{facet_type}/"
-        if marker in path:
-            slug = path.split(marker, 1)[1].split("/")[-1]
-            if slug:
-                return Facet(type=facet_type, slug=slug, name=name)
+        for language in ("en", "ar"):
+            marker = f"/{language}/{facet_type}/"
+            if marker in path:
+                slug = path.split(marker, 1)[1].split("/")[-1]
+                if slug:
+                    if language == "ar":
+                        return Facet(type=facet_type, slug=slug, name_ar=name)
+                    return Facet(type=facet_type, slug=slug, name=name)
     return None
 
 
@@ -103,7 +133,14 @@ def _best_card_container(node) -> object:  # type: ignore[no-untyped-def]
         if container is None:
             break
         html = container.html or ""
-        if "/en/category/" in html or "/en/brand/" in html or "/en/keyword/" in html:
+        if (
+            "/en/category/" in html
+            or "/en/brand/" in html
+            or "/en/keyword/" in html
+            or "/ar/category/" in html
+            or "/ar/brand/" in html
+            or "/ar/keyword/" in html
+        ):
             best = container
             break
         best = container
@@ -115,11 +152,11 @@ def parse_listing_cards(html: str) -> list[ListingCard]:
     tree = HTMLParser(html)
     seen: set[str] = set()
     cards: list[ListingCard] = []
-    for node in tree.css(f"a[href*='{_PROFILE_HREF_PREFIX}']"):
+    for node in tree.css("a[href*='/en/profile/'], a[href*='/ar/profile/']"):
         href = node.attrs.get("href", "") or ""
-        if _PROFILE_HREF_PREFIX not in href:
+        if _PROFILE_HREF_PREFIX not in href and "/ar/profile/" not in href:
             continue
-        full = _normalize_href(href.split("?", 1)[0].split("#", 1)[0])
+        full = _canonical_profile_url(_normalize_href(href.split("?", 1)[0].split("#", 1)[0]))
         if not full or full in seen:
             continue
         seen.add(full)
@@ -246,7 +283,12 @@ def _crawl_facets(
     city_slug: str | None,
 ) -> list[Facet]:
     facets = list(listing_facets)
-    source_facet = Facet(type=target_type, slug=slug, name=slug)
+    source_facet = Facet(
+        type=target_type,
+        slug=slug,
+        name=SEARCH_ALIASES.get(slug, CATEGORY_ALIASES.get(slug, slug)),
+        name_ar=slug if slug in SEARCH_ALIASES or slug in CATEGORY_ALIASES else "",
+    )
     if not any(f.type == source_facet.type and f.slug == source_facet.slug for f in facets):
         facets.append(source_facet)
     if city_slug and not any(f.type == "city" and f.slug == city_slug for f in facets):
@@ -305,37 +347,77 @@ def scrape_target(
     referer = f"{BASE_URL}/en"
 
     for page_num in range(1, max_pages + 1):
-        page_url = build_target_url(target_type, slug, page=page_num, city_slug=city_slug)
-        proxy = proxy_pool.get() if proxy_pool else None
+        page_urls = [
+            build_target_url(
+                target_type,
+                slug,
+                page=page_num,
+                city_slug=city_slug,
+                language=language,
+            )
+            for language in ("en", "ar")
+        ]
+        listing_by_url: dict[str, ListingCard] = {}
+        fetched_any_ok = False
 
-        log.info("scraping_page", page=page_num, url=page_url, proxy=proxy)
-        try:
-            resp = pipeline.fetch(page_url, proxy=proxy, referer=referer)
-        except BlockedError:
-            log.error("category_blocked", url=page_url)
-            if proxy_pool and proxy:
-                proxy_pool.record_failure(proxy)
-            break
+        for page_url in page_urls:
+            proxy = proxy_pool.get() if proxy_pool else None
+            log.info("scraping_page", page=page_num, url=page_url, proxy=proxy)
+            try:
+                resp = pipeline.fetch(page_url, proxy=proxy, referer=referer)
+            except BlockedError:
+                log.error("category_blocked", url=page_url)
+                if proxy_pool and proxy:
+                    proxy_pool.record_failure(proxy)
+                continue
 
-        if not resp.ok:
+            if not resp.ok:
+                log.warning("non_ok_response", page=page_num, url=page_url, status=resp.status_code)
+                continue
+
+            fetched_any_ok = True
+            for card in parse_listing_cards(resp.text):
+                existing = listing_by_url.get(card.url)
+                if existing is None:
+                    listing_by_url[card.url] = card
+                    continue
+                known = {(facet.type, facet.slug) for facet in existing.facets}
+                for facet in card.facets:
+                    key = (facet.type, facet.slug)
+                    if key in known:
+                        for existing_facet in existing.facets:
+                            if (existing_facet.type, existing_facet.slug) == key:
+                                existing_facet.name = existing_facet.name or facet.name
+                                existing_facet.name_ar = existing_facet.name_ar or facet.name_ar
+                                break
+                    else:
+                        existing.facets.append(facet)
+                        known.add(key)
+
+        listing_cards = list(listing_by_url.values())
+
+        if not fetched_any_ok:
             consecutive_empty += 1
-            log.warning("non_ok_response", page=page_num, url=page_url, status=resp.status_code)
+            log.warning("non_ok_response", page=page_num, url=page_urls[-1])
             if progress_callback:
                 progress_callback(page_num, total_written)
             if consecutive_empty >= consecutive_empty_halt:
-                log.error("dom_drift_halt", consecutive=consecutive_empty, last_url=page_url)
+                log.error("dom_drift_halt", consecutive=consecutive_empty, last_url=page_urls[-1])
                 break
             continue
 
-        listing_cards = parse_listing_cards(resp.text)
-
         if not listing_cards:
             consecutive_empty += 1
-            log.warning("empty_page", page=page_num, url=page_url, consecutive=consecutive_empty)
+            log.warning(
+                "empty_page",
+                page=page_num,
+                url=page_urls[-1],
+                consecutive=consecutive_empty,
+            )
             if progress_callback:
                 progress_callback(page_num, total_written)
             if consecutive_empty >= consecutive_empty_halt:
-                log.error("dom_drift_halt", consecutive=consecutive_empty, last_url=page_url)
+                log.error("dom_drift_halt", consecutive=consecutive_empty, last_url=page_urls[-1])
                 break
             continue
 
@@ -366,7 +448,11 @@ def scrape_target(
                 rate_limiter.wait()
                 detail_proxy = proxy_pool.get() if proxy_pool else None
                 try:
-                    detail_resp = pipeline.fetch(listing_url, proxy=detail_proxy, referer=page_url)
+                    detail_resp = pipeline.fetch(
+                        listing_url,
+                        proxy=detail_proxy,
+                        referer=page_urls[0],
+                    )
                 except BlockedError:
                     log.warning("listing_blocked", url=listing_url)
                     if proxy_pool and detail_proxy:

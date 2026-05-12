@@ -17,7 +17,29 @@ _TARGET_TABLES = {
     "brand": "brands",
     "keyword": "keywords",
 }
-ARABIC_ROLE_SEARCH_TERMS = {"مصنع", "مستورد", "موزع"}
+ARABIC_ROLE_SEARCH_TERMS = {
+    "مصنع",
+    "استيراد",
+    "تصدير",
+    "استيراد وتصدير",
+}
+RELATED_CATEGORY_TARGETS = {
+    "import-&-export",
+    "import-export",
+    "import export",
+    "factory",
+    "factories",
+    "استيراد وتصدير",
+    "مصنع",
+}
+RELATED_KEYWORD_TARGETS = {
+    "import",
+    "export",
+    "factory",
+    "استيراد",
+    "تصدير",
+    "مصنع",
+}
 
 
 def _row_value(row: Any, key: str, index: int) -> Any:
@@ -173,6 +195,8 @@ def _load_targets(
     targets: list[tuple[str, str]] = []
     target_slugs_by_type = target_slugs_by_type or {}
     for target_type in target_types:
+        if target_type == "brand" and target_type not in target_slugs_by_type:
+            continue
         table = _TARGET_TABLES[target_type]
         selected_slugs = target_slugs_by_type.get(target_type) or []
         if selected_slugs:
@@ -182,7 +206,32 @@ def _load_targets(
                 selected_slugs,
             ).fetchall()
         else:
-            rows = conn.execute(f"SELECT slug FROM {table} ORDER BY name").fetchall()
+            allowed_terms = (
+                RELATED_CATEGORY_TARGETS
+                if target_type == "category"
+                else RELATED_KEYWORD_TARGETS
+                if target_type == "keyword"
+                else set()
+            )
+            ph = placeholder(backend)
+            target_search_clause = (
+                f"LOWER(slug) LIKE LOWER({ph}) "
+                f"OR LOWER(name) LIKE LOWER({ph}) "
+                f"OR LOWER(href) LIKE LOWER({ph})"
+            )
+            search_clause = " OR ".join(
+                target_search_clause
+                for _ in allowed_terms
+            )
+            params = [
+                f"%{term}%"
+                for term in allowed_terms
+                for _ in range(3)
+            ]
+            rows = conn.execute(
+                f"SELECT slug FROM {table} WHERE {search_clause} ORDER BY name",
+                params,
+            ).fetchall()
         targets.extend((target_type, _row_value(row, "slug", 0)) for row in rows)
     return targets
 

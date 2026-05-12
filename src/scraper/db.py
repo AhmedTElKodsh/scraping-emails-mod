@@ -5,7 +5,18 @@ import sqlite3
 from pathlib import Path
 
 DEFAULT_DB_PATH = "data/scraper.sqlite"
-ARABIC_ROLE_TERMS = ("مصنع", "مستورد", "موزع")
+ARABIC_ROLE_TERMS = (
+    "مصنع",
+    "استيراد",
+    "تصدير",
+    "استيراد وتصدير",
+)
+PRIORITY_SEARCH_HREFS = {
+    "مصنع": "/en/search/factory",
+    "استيراد": "/en/search/import",
+    "تصدير": "/en/search/export",
+    "استيراد وتصدير": "/en/category/import-&-export",
+}
 ARABIC_ROLE_SEARCH_HREF = "/en/search/{}"
 
 def get_connection(db_path: str | Path | None = None) -> sqlite3.Connection:
@@ -204,24 +215,25 @@ def _sync_location_facets_from_addresses(conn: sqlite3.Connection) -> None:
 
 def _seed_arabic_role_terms(conn: sqlite3.Connection) -> None:
     for term in ARABIC_ROLE_TERMS:
+        href = PRIORITY_SEARCH_HREFS.get(term, ARABIC_ROLE_SEARCH_HREF.format(term))
         conn.execute(
             """INSERT OR IGNORE INTO categories
             (slug, name, parent_slug, result_count, href, scraped_at)
             VALUES (?, ?, '', 0, ?, '')""",
-            (term, term, ARABIC_ROLE_SEARCH_HREF.format(term)),
+            (term, term, href),
         )
         conn.execute(
             "UPDATE categories SET href=? WHERE slug=?",
-            (ARABIC_ROLE_SEARCH_HREF.format(term), term),
+            (href, term),
         )
         conn.execute(
             """INSERT OR IGNORE INTO keywords (slug, name, href, scraped_at)
             VALUES (?, ?, ?, '')""",
-            (term, term, ARABIC_ROLE_SEARCH_HREF.format(term)),
+            (term, term, href),
         )
         conn.execute(
             "UPDATE keywords SET href=? WHERE slug=?",
-            (ARABIC_ROLE_SEARCH_HREF.format(term), term),
+            (href, term),
         )
 
 
@@ -295,6 +307,7 @@ def init_db(conn: sqlite3.Connection) -> None:
             ),
             slug TEXT NOT NULL,
             name TEXT DEFAULT '',
+            name_ar TEXT DEFAULT '',
             PRIMARY KEY (source_url, facet_type, slug),
             FOREIGN KEY (source_url) REFERENCES businesses(source_url)
         );
@@ -332,6 +345,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "businesses", "category_ar", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "businesses", "governorate_ar", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "businesses", "address_ar", "TEXT DEFAULT ''")
+    _add_column_if_missing(conn, "business_facets", "name_ar", "TEXT DEFAULT ''")
     _add_column_if_missing(conn, "scrape_jobs", "target_type", "TEXT NOT NULL DEFAULT 'category'")
     _add_column_if_missing(conn, "scrape_jobs", "target_slug", "TEXT NOT NULL DEFAULT ''")
     conn.execute(

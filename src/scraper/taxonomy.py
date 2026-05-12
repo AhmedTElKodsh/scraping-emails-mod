@@ -10,7 +10,7 @@ from urllib.parse import urljoin
 import structlog
 from selectolax.parser import HTMLParser
 
-from scraper.db import get_connection, init_db
+from scraper.storage import Backend, open_connection, placeholder
 
 log = structlog.get_logger()
 
@@ -275,68 +275,159 @@ def _collect_paginated_index(
     return _unique_items(items)
 
 
-def _upsert_categories(conn: Any, categories: list[dict[str, Any]], scraped_at: str) -> None:
+def _upsert_categories(
+    conn: Any,
+    categories: list[dict[str, Any]],
+    scraped_at: str,
+    backend: Backend = "sqlite",
+) -> None:
+    ph = placeholder(backend)
     for cat in categories:
-        conn.execute(
-            """INSERT OR REPLACE INTO categories
-            (slug, name, parent_slug, result_count, href, scraped_at)
-            VALUES (?, ?, ?, ?, ?, ?)""",
-            (
-                cat["slug"],
-                cat["name"],
-                cat.get("parent_slug", ""),
-                cat.get("result_count", 0),
-                cat.get("href", ""),
-                scraped_at,
-            ),
+        params = (
+            cat["slug"],
+            cat["name"],
+            cat.get("parent_slug", ""),
+            cat.get("result_count", 0),
+            cat.get("href", ""),
+            scraped_at,
         )
+        if backend == "postgres":
+            conn.execute(
+                f"""INSERT INTO categories
+                (slug, name, parent_slug, result_count, href, scraped_at)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                ON CONFLICT (slug) DO UPDATE SET
+                    name=EXCLUDED.name,
+                    parent_slug=EXCLUDED.parent_slug,
+                    result_count=EXCLUDED.result_count,
+                    href=EXCLUDED.href,
+                    scraped_at=EXCLUDED.scraped_at""",
+                params,
+            )
+        else:
+            conn.execute(
+                """INSERT OR REPLACE INTO categories
+                (slug, name, parent_slug, result_count, href, scraped_at)
+                VALUES (?, ?, ?, ?, ?, ?)""",
+                params,
+            )
 
 
-def _upsert_brands(conn: Any, brands: list[dict[str, Any]], scraped_at: str) -> None:
+def _upsert_brands(
+    conn: Any,
+    brands: list[dict[str, Any]],
+    scraped_at: str,
+    backend: Backend = "sqlite",
+) -> None:
+    ph = placeholder(backend)
     for brand in brands:
-        conn.execute(
-            """INSERT OR REPLACE INTO brands
-            (slug, name, result_count, href, scraped_at)
-            VALUES (?, ?, ?, ?, ?)""",
-            (
-                brand["slug"],
-                brand["name"],
-                brand.get("result_count", 0),
-                brand.get("href", ""),
-                scraped_at,
-            ),
+        params = (
+            brand["slug"],
+            brand["name"],
+            brand.get("result_count", 0),
+            brand.get("href", ""),
+            scraped_at,
         )
+        if backend == "postgres":
+            conn.execute(
+                f"""INSERT INTO brands
+                (slug, name, result_count, href, scraped_at)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph})
+                ON CONFLICT (slug) DO UPDATE SET
+                    name=EXCLUDED.name,
+                    result_count=EXCLUDED.result_count,
+                    href=EXCLUDED.href,
+                    scraped_at=EXCLUDED.scraped_at""",
+                params,
+            )
+        else:
+            conn.execute(
+                """INSERT OR REPLACE INTO brands
+                (slug, name, result_count, href, scraped_at)
+                VALUES (?, ?, ?, ?, ?)""",
+                params,
+            )
 
 
-def _upsert_keywords(conn: Any, keywords: list[dict[str, Any]], scraped_at: str) -> None:
+def _upsert_keywords(
+    conn: Any,
+    keywords: list[dict[str, Any]],
+    scraped_at: str,
+    backend: Backend = "sqlite",
+) -> None:
+    ph = placeholder(backend)
     for keyword in keywords:
-        conn.execute(
-            """INSERT OR REPLACE INTO keywords
-            (slug, name, href, scraped_at)
-            VALUES (?, ?, ?, ?)""",
-            (keyword["slug"], keyword["name"], keyword.get("href", ""), scraped_at),
+        params = (keyword["slug"], keyword["name"], keyword.get("href", ""), scraped_at)
+        if backend == "postgres":
+            conn.execute(
+                f"""INSERT INTO keywords
+                (slug, name, href, scraped_at)
+                VALUES ({ph}, {ph}, {ph}, {ph})
+                ON CONFLICT (slug) DO UPDATE SET
+                    name=EXCLUDED.name,
+                    href=EXCLUDED.href,
+                    scraped_at=EXCLUDED.scraped_at""",
+                params,
+            )
+        else:
+            conn.execute(
+                """INSERT OR REPLACE INTO keywords
+                (slug, name, href, scraped_at)
+                VALUES (?, ?, ?, ?)""",
+                params,
+            )
+
+
+def _location_sort_key(location: dict[str, Any]) -> int:
+    return {"city": 0, "area": 1, "district": 2}.get(location.get("type", "city"), 99)
+
+
+def _upsert_locations(
+    conn: Any,
+    locations: list[dict[str, Any]],
+    scraped_at: str,
+    backend: Backend = "sqlite",
+) -> None:
+    ph = placeholder(backend)
+    for loc in sorted(_resolve_location_parents(locations), key=_location_sort_key):
+        params = (
+            loc["slug"],
+            loc["name"],
+            loc.get("type", "city"),
+            loc.get("external_id", ""),
+            loc.get("parent_slug") or None if backend == "postgres" else loc.get("parent_slug", ""),
+            loc.get("result_count", 0),
+            scraped_at,
         )
+        if backend == "postgres":
+            conn.execute(
+                f"""INSERT INTO locations
+                (slug, name, type, external_id, parent_slug, result_count, scraped_at)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                ON CONFLICT (slug) DO UPDATE SET
+                    name=EXCLUDED.name,
+                    type=EXCLUDED.type,
+                    external_id=EXCLUDED.external_id,
+                    parent_slug=EXCLUDED.parent_slug,
+                    result_count=EXCLUDED.result_count,
+                    scraped_at=EXCLUDED.scraped_at""",
+                params,
+            )
+        else:
+            conn.execute(
+                """INSERT OR REPLACE INTO locations
+                (slug, name, type, external_id, parent_slug, result_count, scraped_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                params,
+            )
 
 
-def _upsert_locations(conn: Any, locations: list[dict[str, Any]], scraped_at: str) -> None:
-    for loc in _resolve_location_parents(locations):
-        conn.execute(
-            """INSERT OR REPLACE INTO locations
-            (slug, name, type, external_id, parent_slug, result_count, scraped_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (
-                loc["slug"],
-                loc["name"],
-                loc.get("type", "city"),
-                loc.get("external_id", ""),
-                loc.get("parent_slug", ""),
-                loc.get("result_count", 0),
-                scraped_at,
-            ),
-        )
-
-
-def refresh_from_live(conn: Any, pipeline: Any | None = None, max_pages: int = 5) -> None:
+def refresh_from_live(
+    conn: Any,
+    pipeline: Any | None = None,
+    max_pages: int = 5,
+    backend: Backend = "sqlite",
+) -> None:
     """Fetch live YP taxonomy pages and update taxonomy tables."""
     log.info("refresh_from_live_start")
     scraped_at = datetime.now(UTC).isoformat()
@@ -352,16 +443,16 @@ def refresh_from_live(conn: Any, pipeline: Any | None = None, max_pages: int = 5
         pipeline=pipeline,
         keyword_pager=True,
     )
-    _upsert_categories(conn, categories, scraped_at)
-    _upsert_brands(conn, brands, scraped_at)
-    _upsert_keywords(conn, keywords, scraped_at)
+    _upsert_categories(conn, categories, scraped_at, backend)
+    _upsert_brands(conn, brands, scraped_at, backend)
+    _upsert_keywords(conn, keywords, scraped_at, backend)
 
     locations: list[dict[str, Any]] = []
     for cat in categories[:max_pages]:
         html = _fetch_text(urljoin(BASE_URL, f"/en/category/{cat['slug']}"), pipeline=pipeline)
         if html:
             locations.extend(parse_locations(html))
-    _upsert_locations(conn, locations, scraped_at)
+    _upsert_locations(conn, locations, scraped_at, backend)
     conn.commit()
     log.info(
         "refresh_from_live_done",
@@ -379,10 +470,17 @@ def init_taxonomy(
     pipeline: Any | None = None,
 ) -> None:
     """Initialize taxonomy DB from seed and optionally refresh live."""
-    conn = get_connection(db_path)
-    init_db(conn)
+    conn, backend = open_connection(db_path)
     seed = load_seed(seed_path)
-    populate_from_seed(conn, seed)
+    if backend == "postgres":
+        now = ""
+        _upsert_categories(conn, seed.get("categories", []), now, backend)
+        _upsert_brands(conn, seed.get("brands", []), now, backend)
+        _upsert_keywords(conn, seed.get("keywords", []), now, backend)
+        _upsert_locations(conn, seed.get("locations", []), now, backend)
+        conn.commit()
+    else:
+        populate_from_seed(conn, seed)
     if live_refresh:
-        refresh_from_live(conn, pipeline=pipeline)
+        refresh_from_live(conn, pipeline=pipeline, backend=backend)
     conn.close()

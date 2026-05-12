@@ -19,12 +19,12 @@ def test_zero_row_done_arabic_role_jobs_are_retryable() -> None:
 
     assert _should_skip_done_job(
         "category",
-        "مستورد",
+        "استيراد",
         {"status": "done", "rows_written": 0},
     ) is False
     assert _should_skip_done_job(
         "category",
-        "مستورد",
+        "استيراد",
         {"status": "done", "rows_written": 4},
     ) is True
     assert _should_skip_done_job(
@@ -151,15 +151,14 @@ def test_load_targets_reads_requested_taxonomy_tables(tmp_path) -> None:  # type
 
     targets = _load_targets(conn, ["category", "brand", "keyword"])
 
-    assert targets[:4] == [
-        ("category", "air-conditioning"),
-        ("category", "مستورد"),
-        ("category", "مصنع"),
-        ("category", "موزع"),
-    ]
-    assert ("brand", "carrier") in targets
-    assert ("keyword", "Air-Condition") in targets
-    assert ("keyword", "مستورد") in targets
+    assert ("category", "air-conditioning") not in targets
+    assert ("category", "استيراد") not in targets
+    assert ("category", "استيراد وتصدير") in targets
+    assert ("category", "مصنع") in targets
+    assert ("category", "تصدير") not in targets
+    assert ("brand", "carrier") not in targets
+    assert ("keyword", "Air-Condition") not in targets
+    assert ("keyword", "استيراد") in targets
     conn.close()
 
 

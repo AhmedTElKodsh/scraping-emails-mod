@@ -28,6 +28,7 @@ from app.data_access import (
     load_facet_options,
     load_job_summary,
     load_matching_jobs,
+    search_facet_suggestions,
 )
 from scraper.config import Settings
 
@@ -80,6 +81,9 @@ st.markdown(
         line-height: 1.45;
         margin-top: -0.25rem;
     }
+    div[data-testid="stDataFrame"] {
+        font-size: 0.78rem;
+    }
     @keyframes crawlspin {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
@@ -93,7 +97,10 @@ st.markdown(
 def _option_labels(rows: list[dict[str, Any]]) -> dict[str, str]:
     labels = {}
     for row in rows:
-        label = f"{row['name']} ({row['slug']})"
+        name = row["name"]
+        name_ar = row.get("name_ar") or ""
+        display_name = f"{name} / {name_ar}" if name_ar and name_ar != name else name
+        label = f"{display_name} ({row['slug']})"
         result_count = row.get("count") or row.get("result_count")
         if result_count:
             label = f"{label} - {result_count}"
@@ -103,6 +110,32 @@ def _option_labels(rows: list[dict[str, Any]]) -> dict[str, str]:
 
 def _selected_slugs(label_to_slug: dict[str, str], selected: list[str]) -> list[str]:
     return [label_to_slug[label] for label in selected if label in label_to_slug]
+
+
+def _facet_suggestion_labels(
+    rows: list[dict[str, Any]],
+    language: str,
+) -> dict[str, dict[str, Any]]:
+    labels = {}
+    label_by_type = {
+        "category": "Category",
+        "brand": "Brand",
+        "keyword": "Keyword",
+        "city": "City",
+        "area": "Area",
+        "district": "District",
+    }
+    for row in rows:
+        name = row.get("name") or row["slug"]
+        name_ar = row.get("name_ar") or ""
+        if language == "العربية" and name_ar:
+            display_name = f"{name_ar} / {name}" if name_ar != name else name_ar
+        else:
+            display_name = f"{name} / {name_ar}" if name_ar and name_ar != name else name
+        kind = label_by_type.get(row["facet_type"], row["facet_type"].title())
+        label = f"{kind}: {display_name} ({row['slug']}) - {row['count']}"
+        labels[label] = row
+    return labels
 
 
 def _prune_multiselect_state(key: str, options: list[str]) -> None:
@@ -188,6 +221,12 @@ def _crawl_runtime_snapshot() -> dict[str, Any]:
 
 
 st.sidebar.title("Filters")
+language_choice = st.sidebar.radio(
+    "Language",
+    ["English", "العربية"],
+    horizontal=True,
+    key="display_language",
+)
 
 if SEED_WAS_LOADED:
     st.session_state["starter_taxonomy_loaded"] = True
@@ -254,6 +293,20 @@ if district_options:
         key="selected_districts",
     )
 
+search_query = st.sidebar.text_input("Search", key="dataset_search").strip()
+selected_search_facet: dict[str, Any] | None = None
+if search_query:
+    search_suggestions = search_facet_suggestions(DB_PATH, search_query)
+    suggestion_options = _facet_suggestion_labels(search_suggestions, language_choice)
+    if suggestion_options:
+        suggestion_choice = st.sidebar.selectbox(
+            "Suggestions",
+            ["Text search", *suggestion_options.keys()],
+            key="dataset_search_suggestion",
+        )
+        if suggestion_choice != "Text search":
+            selected_search_facet = suggestion_options[suggestion_choice]
+
 filters = {
     "category": _selected_slugs(category_options, selected_categories),
     "brand": _selected_slugs(brand_options, selected_brands),
@@ -262,6 +315,13 @@ filters = {
     "area": selected_area_slugs,
     "district": _selected_slugs(district_options, selected_districts),
 }
+if selected_search_facet:
+    facet_type = selected_search_facet["facet_type"]
+    slug = selected_search_facet["slug"]
+    filters.setdefault(facet_type, [])
+    if slug not in filters[facet_type]:
+        filters[facet_type].append(slug)
+    search_query = ""
 
 target_slugs_by_type = {
     target_type: slugs
@@ -272,7 +332,15 @@ target_slugs_by_type = {
     }.items()
     if slugs
 }
-crawl_plan = build_crawl_plan(target_slugs_by_type, filters["city"])
+default_target_slugs_by_type = {
+    "category": list(category_options.values()),
+    "keyword": list(keyword_options.values()),
+}
+crawl_plan = build_crawl_plan(
+    target_slugs_by_type,
+    filters["city"],
+    default_target_slugs_by_type,
+)
 
 st.title("YellowPages Egypt - Business Contacts")
 
@@ -405,7 +473,7 @@ if st.sidebar.button("Refresh Log", key="refresh_log_button"):
     if log_path.exists():
         st.code(log_path.read_text(encoding="utf-8")[-2000:], language="text")
 
-businesses = load_businesses(DB_PATH, filters)
+businesses = load_businesses(DB_PATH, filters, search_query=search_query)
 
 if not businesses:
     matching_jobs = load_matching_jobs(
@@ -429,7 +497,14 @@ if not businesses:
         and all(job["status"] == "done" for job in matching_jobs)
         and all((job["rows_written"] or 0) == 0 for job in matching_jobs)
     ):
-        st.info("The selected crawl job completed, but wrote 0 businesses.")
+        saved_matches = sum(job.get("matching_saved_businesses", 0) for job in matching_jobs)
+        if saved_matches:
+            st.info(
+                f"The selected crawl is complete. {saved_matches:,} saved businesses "
+                "already match this selection."
+            )
+        else:
+            st.info("The selected crawl job completed, but wrote 0 businesses.")
     elif matching_jobs:
         st.info("Saved businesses exist for this crawl, but none match all selected filters.")
     else:
@@ -437,13 +512,12 @@ if not businesses:
 else:
     df = pd.DataFrame(businesses)
     columns = [
-        "business_name",
-        "business_name_ar",
+        "business_name_ar" if language_choice == "العربية" else "business_name",
         "phone",
         "email",
         "website",
-        "address",
-        "address_ar",
+        "address_ar" if language_choice == "العربية" else "address",
+        "category_ar" if language_choice == "العربية" else "category_slug",
         "source_url",
         "matched_facets",
         "scraped_at",
@@ -452,11 +526,11 @@ else:
     st.write(f"**{len(df)}** businesses found (showing up to 500)")
     st.dataframe(df[visible_columns], width="stretch")
 
-    csv_data = df.drop_duplicates(subset=["source_url"]).to_csv(index=False)
+    csv_data = df.drop_duplicates(subset=["source_url"]).to_csv(index=False).encode("utf-8-sig")
     st.download_button(
         "Download CSV",
         csv_data,
         f"yp_export_{datetime.now().strftime('%Y%m%d')}.csv",
-        "text/csv",
+        "text/csv; charset=utf-8-sig",
         key="download_csv_button",
     )

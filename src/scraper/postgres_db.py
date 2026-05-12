@@ -6,7 +6,18 @@ from urllib.parse import parse_qsl, unquote, urlparse
 import psycopg
 from psycopg.rows import dict_row
 
-ARABIC_ROLE_TERMS = ("مصنع", "مستورد", "موزع")
+ARABIC_ROLE_TERMS = (
+    "مصنع",
+    "استيراد",
+    "تصدير",
+    "استيراد وتصدير",
+)
+PRIORITY_SEARCH_HREFS = {
+    "مصنع": "/en/search/factory",
+    "استيراد": "/en/search/import",
+    "تصدير": "/en/search/export",
+    "استيراد وتصدير": "/en/category/import-&-export",
+}
 ARABIC_ROLE_SEARCH_HREF = "/en/search/{}"
 
 
@@ -36,6 +47,22 @@ def get_connection(database_url: str) -> Any:
         autocommit=False,
         prepare_threshold=None,
     )
+
+
+def _column_exists(cur: Any, table: str, column: str) -> bool:
+    cur.execute(
+        """SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema='public' AND table_name=%s AND column_name=%s
+        LIMIT 1""",
+        (table, column),
+    )
+    return cur.fetchone() is not None
+
+
+def _add_column_if_missing(cur: Any, table: str, column: str, definition: str) -> None:
+    if not _column_exists(cur, table, column):
+        cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def init_db(conn: Any) -> None:
@@ -116,6 +143,7 @@ def init_db(conn: Any) -> None:
             ),
             slug TEXT NOT NULL,
             name TEXT DEFAULT '',
+            name_ar TEXT DEFAULT '',
             PRIMARY KEY (source_url, facet_type, slug)
         )
         """,
@@ -151,18 +179,20 @@ def init_db(conn: Any) -> None:
         for statement in statements:
             cur.execute(statement)
         for column in ("business_name_ar", "category_ar", "governorate_ar", "address_ar"):
-            cur.execute(f"ALTER TABLE businesses ADD COLUMN IF NOT EXISTS {column} TEXT DEFAULT ''")
+            _add_column_if_missing(cur, "businesses", column, "TEXT DEFAULT ''")
+        _add_column_if_missing(cur, "business_facets", "name_ar", "TEXT DEFAULT ''")
         for term in ARABIC_ROLE_TERMS:
+            href = PRIORITY_SEARCH_HREFS.get(term, ARABIC_ROLE_SEARCH_HREF.format(term))
             cur.execute(
                 """INSERT INTO categories (slug, name, parent_slug, result_count, href, scraped_at)
                 VALUES (%s, %s, '', 0, %s, '')
                 ON CONFLICT (slug) DO UPDATE SET href=EXCLUDED.href""",
-                (term, term, ARABIC_ROLE_SEARCH_HREF.format(term)),
+                (term, term, href),
             )
             cur.execute(
                 """INSERT INTO keywords (slug, name, href, scraped_at)
                 VALUES (%s, %s, %s, '')
                 ON CONFLICT (slug) DO UPDATE SET href=EXCLUDED.href""",
-                (term, term, ARABIC_ROLE_SEARCH_HREF.format(term)),
+                (term, term, href),
             )
     conn.commit()

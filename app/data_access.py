@@ -6,7 +6,29 @@ from typing import Any
 from scraper.storage import Backend, open_connection, placeholder
 from scraper.taxonomy import load_seed, populate_from_seed
 
-ARABIC_ROLE_TERMS = {"مصنع", "مستورد", "موزع"}
+ARABIC_ROLE_TERMS = {
+    "مصنع",
+    "استيراد",
+    "تصدير",
+    "استيراد وتصدير",
+}
+RELATED_CATEGORY_TARGETS = {
+    "import-&-export",
+    "import-export",
+    "import export",
+    "factory",
+    "factories",
+    "استيراد وتصدير",
+    "مصنع",
+}
+RELATED_KEYWORD_TARGETS = {
+    "import",
+    "export",
+    "factory",
+    "استيراد",
+    "تصدير",
+    "مصنع",
+}
 
 def _open(db_path: str | Path) -> tuple[Any, Backend]:
     return open_connection(db_path)
@@ -23,6 +45,42 @@ def _scalar(row: Any, key: str, index: int = 0) -> Any:
         return row[index]
 
 
+def _like_pattern(value: str) -> str:
+    return f"%{value.strip()}%"
+
+
+def _facet_search_clause(alias: str, ph: str, backend: Backend) -> str:
+    fields = (
+        f"{alias}.slug",
+        f"{alias}.name",
+        f"COALESCE({alias}.name_ar, '')",
+    )
+    if backend == "postgres":
+        return " OR ".join(f"{field} ILIKE {ph}" for field in fields)
+    return " OR ".join(f"LOWER({field}) LIKE LOWER({ph})" for field in fields)
+
+
+def _business_search_clause(ph: str, backend: Backend) -> str:
+    fields = (
+        "b.business_name",
+        "b.business_name_ar",
+        "b.category_slug",
+        "b.category_ar",
+        "b.city_slug",
+        "b.governorate_ar",
+        "b.phone",
+        "b.email",
+        "b.website",
+        "b.facebook_url",
+        "b.address",
+        "b.address_ar",
+        "b.source_url",
+    )
+    if backend == "postgres":
+        return " OR ".join(f"COALESCE({field}, '') ILIKE {ph}" for field in fields)
+    return " OR ".join(f"LOWER(COALESCE({field}, '')) LIKE LOWER({ph})" for field in fields)
+
+
 def load_taxonomy_options(db_path: str | Path, table: str) -> list[dict[str, Any]]:
     allowed = {"categories", "brands", "keywords"}
     if table not in allowed:
@@ -33,6 +91,18 @@ def load_taxonomy_options(db_path: str | Path, table: str) -> list[dict[str, Any
         return _rows_to_dicts(rows)
     finally:
         conn.close()
+
+
+def _target_matches(row: dict[str, Any], allowed_terms: set[str]) -> bool:
+    haystack = " ".join(
+        str(row.get(field) or "")
+        for field in ("slug", "name", "name_ar", "href")
+    ).casefold()
+    return any(term.casefold() in haystack for term in allowed_terms)
+
+
+def _limited_targets(rows: list[dict[str, Any]], allowed_terms: set[str]) -> list[dict[str, Any]]:
+    return [row for row in rows if _target_matches(row, allowed_terms)]
 
 
 def load_facet_options(
@@ -58,6 +128,7 @@ def load_facet_options(
         if table == "locations":
             query = (
                 "SELECT bf.slug, COALESCE(l.name, bf.name, bf.slug) AS name, "
+                "COALESCE(bf.name_ar, '') AS name_ar, "
                 "COUNT(DISTINCT bf.source_url) AS count "
                 "FROM business_facets bf "
                 "LEFT JOIN locations l ON l.slug=bf.slug AND l.type=bf.facet_type "
@@ -67,19 +138,28 @@ def load_facet_options(
             if parent_slug is not None:
                 query += f" AND l.parent_slug={ph}"
                 params.append(parent_slug)
-            query += " GROUP BY bf.slug, COALESCE(l.name, bf.name, bf.slug) ORDER BY name"
+            query += (
+                " GROUP BY bf.slug, COALESCE(l.name, bf.name, bf.slug), "
+                "COALESCE(bf.name_ar, '') ORDER BY name"
+            )
         else:
             query = (
                 f"SELECT bf.slug, COALESCE(t.name, bf.name, bf.slug) AS name, "
+                "COALESCE(bf.name_ar, '') AS name_ar, "
                 "COUNT(DISTINCT bf.source_url) AS count "
                 "FROM business_facets bf "
                 f"LEFT JOIN {table} t ON t.slug=bf.slug "
                 f"WHERE bf.facet_type={ph} "
-                "GROUP BY bf.slug, COALESCE(t.name, bf.name, bf.slug) ORDER BY name"
+                "GROUP BY bf.slug, COALESCE(t.name, bf.name, bf.slug), "
+                "COALESCE(bf.name_ar, '') ORDER BY name"
             )
             params = [facet_type]
         rows = conn.execute(query, params).fetchall()
-        return _rows_to_dicts(rows)
+        items = _rows_to_dicts(rows)
+        for item in items:
+            if not item.get("name_ar"):
+                item.pop("name_ar", None)
+        return items
     finally:
         conn.close()
 
@@ -93,11 +173,66 @@ def load_filter_options(db_path: str | Path) -> dict[str, list[dict[str, Any]]]:
     }
 
 
+def search_facet_suggestions(
+    db_path: str | Path,
+    query: str,
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    """Return saved facet suggestions matching user search text."""
+    search_text = query.strip()
+    if not search_text:
+        return []
+
+    conn, backend = _open(db_path)
+    ph = placeholder(backend)
+    pattern = _like_pattern(search_text)
+    try:
+        where_clause = _facet_search_clause("bf", ph, backend)
+        rows = conn.execute(
+            f"""SELECT
+                bf.facet_type,
+                bf.slug,
+                COALESCE(NULLIF(MAX(bf.name), ''), bf.slug) AS name,
+                COALESCE(NULLIF(MAX(bf.name_ar), ''), '') AS name_ar,
+                COUNT(DISTINCT bf.source_url) AS count
+            FROM business_facets bf
+            WHERE bf.facet_type IN ('keyword','category','city','area','district','brand')
+              AND ({where_clause})
+            GROUP BY bf.facet_type, bf.slug
+            ORDER BY
+                COUNT(DISTINCT bf.source_url) DESC,
+                CASE bf.facet_type
+                    WHEN 'keyword' THEN 0
+                    WHEN 'category' THEN 1
+                    WHEN 'city' THEN 2
+                    WHEN 'area' THEN 3
+                    WHEN 'district' THEN 4
+                    ELSE 5
+                END,
+                name
+            LIMIT {ph}""",
+            (pattern, pattern, pattern, limit),
+        ).fetchall()
+        suggestions = _rows_to_dicts(rows)
+        for suggestion in suggestions:
+            if not suggestion.get("name_ar"):
+                suggestion.pop("name_ar", None)
+        return suggestions
+    finally:
+        conn.close()
+
+
 def load_crawl_target_options(db_path: str | Path) -> dict[str, list[dict[str, Any]]]:
     return {
-        "categories": load_taxonomy_options(db_path, "categories"),
-        "brands": load_taxonomy_options(db_path, "brands"),
-        "keywords": load_taxonomy_options(db_path, "keywords"),
+        "categories": _limited_targets(
+            load_taxonomy_options(db_path, "categories"),
+            RELATED_CATEGORY_TARGETS,
+        ),
+        "brands": [],
+        "keywords": _limited_targets(
+            load_taxonomy_options(db_path, "keywords"),
+            RELATED_KEYWORD_TARGETS,
+        ),
         "cities": load_locations(db_path, "city"),
     }
 
@@ -176,7 +311,7 @@ def _populate_seed_postgres(conn: Any, seed: dict[str, Any]) -> None:
                 location["name"],
                 location.get("type", "city"),
                 location.get("external_id", ""),
-                location.get("parent_slug", ""),
+                location.get("parent_slug") or None,
                 location.get("result_count", 0),
                 "",
             ),
@@ -380,7 +515,16 @@ def load_matching_jobs(
             params.extend(city_slugs)
         query += " ORDER BY target_type, target_slug, city_slug"
         rows = conn.execute(query, params).fetchall()
-        return _rows_to_dicts(rows)
+        jobs = _rows_to_dicts(rows)
+        for job in jobs:
+            job["matching_saved_businesses"] = _matching_saved_business_count(
+                conn,
+                job["target_type"],
+                job["target_slug"],
+                job["city_slug"],
+                backend,
+            )
+        return jobs
     finally:
         conn.close()
 
@@ -388,21 +532,31 @@ def load_matching_jobs(
 def _facet_text(conn: Any, source_url: str, backend: Backend = "sqlite") -> str:
     ph = placeholder(backend)
     facets = conn.execute(
-        f"""SELECT facet_type, name, slug
+        f"""SELECT facet_type, name, name_ar, slug
         FROM business_facets
         WHERE source_url={ph}
         ORDER BY facet_type, name, slug""",
         (source_url,),
     ).fetchall()
-    return ", ".join(f"{row['facet_type']}: {row['name'] or row['slug']}" for row in facets)
+    parts = []
+    for row in facets:
+        primary = row["name"] or row["slug"]
+        arabic = row["name_ar"] or ""
+        if arabic and arabic != primary:
+            parts.append(f"{row['facet_type']}: {primary} / {arabic}")
+        else:
+            parts.append(f"{row['facet_type']}: {primary}")
+    return ", ".join(parts)
 
 
 def load_businesses(
     db_path: str | Path,
     filters: dict[str, list[str]] | None = None,
+    search_query: str = "",
     limit: int = 500,
 ) -> list[dict[str, Any]]:
     filters = {key: value for key, value in (filters or {}).items() if value}
+    search_text = search_query.strip()
     conn, backend = _open(db_path)
     ph = placeholder(backend)
     try:
@@ -423,7 +577,36 @@ def load_businesses(
                 ")"
             )
             params.extend([*facet_types, *slugs])
-        query += f" ORDER BY b.scraped_at DESC, b.business_name LIMIT {ph}"
+        order_params: list[Any] = []
+        if search_text:
+            pattern = _like_pattern(search_text)
+            facet_clause = _facet_search_clause("bf", ph, backend)
+            business_clause = _business_search_clause(ph, backend)
+            query += (
+                " AND ("
+                "EXISTS ("
+                "SELECT 1 FROM business_facets bf "
+                "WHERE bf.source_url=b.source_url "
+                f"AND ({facet_clause})"
+                ") "
+                f"OR {business_clause}"
+                ")"
+            )
+            params.extend([pattern, pattern, pattern])
+            params.extend([pattern] * 13)
+            order_params.extend([pattern, pattern, pattern])
+            query += (
+                " ORDER BY CASE WHEN EXISTS ("
+                "SELECT 1 FROM business_facets bf "
+                "WHERE bf.source_url=b.source_url "
+                f"AND ({facet_clause})"
+                ") THEN 0 ELSE 1 END, "
+                "b.scraped_at DESC, b.business_name"
+            )
+        else:
+            query += " ORDER BY b.scraped_at DESC, b.business_name"
+        query += f" LIMIT {ph}"
+        params.extend(order_params)
         params.append(limit)
         rows = conn.execute(query, params).fetchall()
         businesses: list[dict[str, Any]] = []

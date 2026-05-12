@@ -54,10 +54,13 @@ class SQLiteWriter:
                 if not facet.type or not facet.slug:
                     continue
                 facet_cursor = self._conn.execute(
-                    """INSERT OR IGNORE INTO business_facets
-                    (source_url, facet_type, slug, name)
-                    VALUES (?, ?, ?, ?)""",
-                    (result.url, facet.type, facet.slug, facet.name),
+                    """INSERT INTO business_facets
+                    (source_url, facet_type, slug, name, name_ar)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(source_url, facet_type, slug) DO UPDATE SET
+                        name=COALESCE(NULLIF(excluded.name, ''), business_facets.name),
+                        name_ar=COALESCE(NULLIF(excluded.name_ar, ''), business_facets.name_ar)""",
+                    (result.url, facet.type, facet.slug, facet.name, facet.name_ar),
                 )
                 saved_rows += facet_cursor.rowcount
             self._conn.commit()
@@ -118,10 +121,13 @@ class SQLiteWriter:
                 if not facet.type or not facet.slug:
                     continue
                 cursor = self._conn.execute(
-                    """INSERT OR IGNORE INTO business_facets
-                    (source_url, facet_type, slug, name)
-                    VALUES (?, ?, ?, ?)""",
-                    (source_url, facet.type, facet.slug, facet.name),
+                    """INSERT INTO business_facets
+                    (source_url, facet_type, slug, name, name_ar)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(source_url, facet_type, slug) DO UPDATE SET
+                        name=COALESCE(NULLIF(excluded.name, ''), business_facets.name),
+                        name_ar=COALESCE(NULLIF(excluded.name_ar, ''), business_facets.name_ar)""",
+                    (source_url, facet.type, facet.slug, facet.name, facet.name_ar),
                 )
                 saved_rows += cursor.rowcount
             self._conn.commit()

@@ -14,6 +14,7 @@ class Facet(BaseModel):
     type: str
     slug: str
     name: str = ""
+    name_ar: str = ""
 
 
 class ScrapeResult(BaseModel):
