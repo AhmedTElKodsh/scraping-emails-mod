@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 os.environ.setdefault("STREAMLIT_BROWSER_GATHER_USAGE_STATS", "false")
 
@@ -112,32 +114,6 @@ def _selected_slugs(label_to_slug: dict[str, str], selected: list[str]) -> list[
     return [label_to_slug[label] for label in selected if label in label_to_slug]
 
 
-def _facet_suggestion_labels(
-    rows: list[dict[str, Any]],
-    language: str,
-) -> dict[str, dict[str, Any]]:
-    labels = {}
-    label_by_type = {
-        "category": "Category",
-        "brand": "Brand",
-        "keyword": "Keyword",
-        "city": "City",
-        "area": "Area",
-        "district": "District",
-    }
-    for row in rows:
-        name = row.get("name") or row["slug"]
-        name_ar = row.get("name_ar") or ""
-        if language == "العربية" and name_ar:
-            display_name = f"{name_ar} / {name}" if name_ar != name else name_ar
-        else:
-            display_name = f"{name} / {name_ar}" if name_ar and name_ar != name else name
-        kind = label_by_type.get(row["facet_type"], row["facet_type"].title())
-        label = f"{kind}: {display_name} ({row['slug']}) - {row['count']}"
-        labels[label] = row
-    return labels
-
-
 def _prune_multiselect_state(key: str, options: list[str]) -> None:
     valid_options = set(options)
     selected = st.session_state.get(key, [])
@@ -221,12 +197,6 @@ def _crawl_runtime_snapshot() -> dict[str, Any]:
 
 
 st.sidebar.title("Filters")
-language_choice = st.sidebar.radio(
-    "Language",
-    ["English", "العربية"],
-    horizontal=True,
-    key="display_language",
-)
 
 if SEED_WAS_LOADED:
     st.session_state["starter_taxonomy_loaded"] = True
@@ -235,16 +205,18 @@ if st.session_state.get("starter_taxonomy_loaded"):
     st.sidebar.success("Loaded starter taxonomy for this fresh deployment.")
 
 filter_options = load_crawl_target_options(DB_PATH)
-category_options = _option_labels(filter_options["categories"])
 brand_options = _option_labels(filter_options["brands"])
 keyword_options = _option_labels(filter_options["keywords"])
 city_options = _option_labels(filter_options["cities"])
 
-selected_categories = _sidebar_multiselect(
-    "Categories",
-    list(category_options.keys()),
-    key="selected_categories",
-)
+# Only show the allowed merged keywords
+ALLOWED_KEYWORDS = {"استيراد", "تصدير", "استيراد وتصدير", "مصنع", "توزيع"}
+restricted_keyword_options = {
+    label: slug for label, slug in keyword_options.items() if slug in ALLOWED_KEYWORDS
+}
+
+selected_categories: list[str] = []  # Categories hidden/removed for now
+
 selected_brands: list[str] = []
 if brand_options:
     selected_brands = _sidebar_multiselect(
@@ -254,10 +226,10 @@ if brand_options:
     )
 
 selected_keywords: list[str] = []
-if keyword_options:
+if restricted_keyword_options:
     selected_keywords = _sidebar_multiselect(
         "Keywords",
-        list(keyword_options.keys()),
+        list(restricted_keyword_options.keys()),
         key="selected_keywords",
     )
 selected_cities = _sidebar_multiselect(
@@ -293,48 +265,54 @@ if district_options:
         key="selected_districts",
     )
 
-search_query = st.sidebar.text_input("Search", key="dataset_search").strip()
-selected_search_facet: dict[str, Any] | None = None
-if search_query:
-    search_suggestions = search_facet_suggestions(DB_PATH, search_query)
-    suggestion_options = _facet_suggestion_labels(search_suggestions, language_choice)
-    if suggestion_options:
-        suggestion_choice = st.sidebar.selectbox(
-            "Suggestions",
-            ["Text search", *suggestion_options.keys()],
-            key="dataset_search_suggestion",
-        )
-        if suggestion_choice != "Text search":
-            selected_search_facet = suggestion_options[suggestion_choice]
+search_query = ""
 
 filters = {
-    "category": _selected_slugs(category_options, selected_categories),
+    "category": selected_categories,  # Always empty list now
     "brand": _selected_slugs(brand_options, selected_brands),
-    "keyword": _selected_slugs(keyword_options, selected_keywords),
+    "keyword": _selected_slugs(restricted_keyword_options, selected_keywords),
     "city": selected_city_slugs,
     "area": selected_area_slugs,
     "district": _selected_slugs(district_options, selected_districts),
 }
-if selected_search_facet:
-    facet_type = selected_search_facet["facet_type"]
-    slug = selected_search_facet["slug"]
-    filters.setdefault(facet_type, [])
-    if slug not in filters[facet_type]:
-        filters[facet_type].append(slug)
-    search_query = ""
+
+# Expand Arabic keywords to include their English equivalents for scraping
+expanded_keywords = set(filters["keyword"])
+if "مصنع" in expanded_keywords:
+    expanded_keywords.update(["factory"])
+if "استيراد" in expanded_keywords:
+    expanded_keywords.update(["import"])
+if "تصدير" in expanded_keywords:
+    expanded_keywords.update(["export"])
+if "استيراد وتصدير" in expanded_keywords:
+    expanded_keywords.update(["import-&-export"])
+if "توزيع" in expanded_keywords:
+    expanded_keywords.update(["distribution"])
 
 target_slugs_by_type = {
     target_type: slugs
     for target_type, slugs in {
         "category": filters["category"],
         "brand": filters["brand"],
-        "keyword": filters["keyword"],
+        "keyword": list(expanded_keywords),
     }.items()
     if slugs
 }
+default_expanded_keywords = set(restricted_keyword_options.values())
+if "مصنع" in default_expanded_keywords:
+    default_expanded_keywords.update(["factory"])
+if "استيراد" in default_expanded_keywords:
+    default_expanded_keywords.update(["import"])
+if "تصدير" in default_expanded_keywords:
+    default_expanded_keywords.update(["export"])
+if "استيراد وتصدير" in default_expanded_keywords:
+    default_expanded_keywords.update(["import-&-export"])
+if "توزيع" in default_expanded_keywords:
+    default_expanded_keywords.update(["distribution"])
+
 default_target_slugs_by_type = {
-    "category": list(category_options.values()),
-    "keyword": list(keyword_options.values()),
+    "category": [],
+    "keyword": list(default_expanded_keywords),
 }
 crawl_plan = build_crawl_plan(
     target_slugs_by_type,

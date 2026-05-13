@@ -230,6 +230,7 @@ def search_facet_suggestions(
 
 
 def load_crawl_target_options(db_path: str | Path) -> dict[str, list[dict[str, Any]]]:
+    keywords_raw = load_taxonomy_options(db_path, "keywords")
     return {
         "categories": _limited_targets(
             load_taxonomy_options(db_path, "categories"),
@@ -237,7 +238,7 @@ def load_crawl_target_options(db_path: str | Path) -> dict[str, list[dict[str, A
         ),
         "brands": [],
         "keywords": _limited_targets(
-            load_taxonomy_options(db_path, "keywords"),
+            keywords_raw,
             RELATED_KEYWORD_TARGETS,
         ),
         "cities": load_locations(db_path, "city"),
@@ -574,6 +575,20 @@ def load_businesses(
             facet_types = [facet_type]
             if facet_type == "keyword" and any(slug in ARABIC_ROLE_TERMS for slug in slugs):
                 facet_types.append("category")
+                english_slugs = []
+                for slug in slugs:
+                    if slug == "مصنع":
+                        english_slugs.extend(["factory", "factories"])
+                    elif slug == "استيراد":
+                        english_slugs.extend(["import"])
+                    elif slug == "تصدير":
+                        english_slugs.extend(["export"])
+                    elif slug == "استيراد وتصدير":
+                        english_slugs.extend(["import-&-export", "import-export", "import export"])
+                    elif slug == "توزيع":
+                        english_slugs.extend(["distribution"])
+                slugs.extend(english_slugs)
+                placeholders = ",".join(ph for _ in slugs)
             type_placeholders = ",".join(ph for _ in facet_types)
             query += (
                 " AND EXISTS ("

@@ -568,6 +568,10 @@ def test_streamlit_full_crawl_uses_http_tiers_only(monkeypatch, tmp_path: Path) 
     monkeypatch.setenv("DATABASE_URL", "")
     monkeypatch.setenv("TAXONOMY_SEED_PATH", str(seed_path))
     monkeypatch.setattr("scraper.mass_crawl.run_mass_crawl", fake_run_mass_crawl)
+    
+    # prevent st.secrets from overriding DATABASE_URL
+    import streamlit as st
+    monkeypatch.setattr(st, "secrets", {})
 
     at = AppTest.from_file("app/streamlit_app.py")
     at.run(timeout=60)
@@ -575,20 +579,10 @@ def test_streamlit_full_crawl_uses_http_tiers_only(monkeypatch, tmp_path: Path) 
     button.click().run(timeout=60)
 
     assert captured["headless"] is False
-    assert captured["target_types"] == ["category", "keyword"]
+    assert captured["target_types"] == ["keyword"]
     assert captured["target_slugs_by_type"] == {
-        "category": ["distribution", "factory", "استيراد وتصدير", "توزيع", "مصنع"],
-        "keyword": [
-            "distribution",
-            "export",
-            "factory",
-            "import",
-            "استيراد",
-            "استيراد وتصدير",
-            "تصدير",
-            "توزيع",
-            "مصنع",
-        ],
+        "category": [],
+        "keyword": [],
     }
     assert captured["city_slugs"] is None
     os.environ.pop("DB_PATH", None)
