@@ -15,7 +15,7 @@ def test_safe_slug_replaces_special_chars() -> None:
 def test_build_pipeline_includes_all_three_tiers_by_default() -> None:
     from scraper.cli import _build_pipeline
 
-    pipeline = _build_pipeline(use_proxies=False, headless=True, use_apollo=False)
+    pipeline = _build_pipeline(use_proxies=False, headless=True)
     assert len(pipeline._tiers) == 3
     assert [t.tier for t in pipeline._tiers] == [1, 2, 3]
 
@@ -23,7 +23,7 @@ def test_build_pipeline_includes_all_three_tiers_by_default() -> None:
 def test_build_pipeline_omits_tier3_when_no_browser() -> None:
     from scraper.cli import _build_pipeline
 
-    pipeline = _build_pipeline(use_proxies=False, headless=True, use_apollo=False, no_browser=True)
+    pipeline = _build_pipeline(use_proxies=False, headless=True, no_browser=True)
     assert len(pipeline._tiers) == 2
     assert [t.tier for t in pipeline._tiers] == [1, 2]
 
@@ -89,17 +89,6 @@ def test_parse_target_types_rejects_unknown_type() -> None:
         _parse_target_types("category,unknown")
 
 
-def test_scrape_use_apollo_is_blocked_before_pipeline_starts() -> None:
-    from scraper.cli import app
-
-    runner = CliRunner()
-    result = runner.invoke(app, ["scrape", "acme-corp", "--use-apollo"])
-
-    assert result.exit_code == 1
-    assert "Apollo browser/page scraping is deprecated" in result.output
-    assert "official Apollo APIs or CSV imports" in result.output
-
-
 def test_crawl_all_no_browser_disables_browser_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     from scraper.cli import app
 
@@ -163,39 +152,8 @@ def test_acquisition_import_csv_command_uses_separate_db(
     assert "Imported 1 businesses" in result.output
 
 
-def test_acquisition_apollo_search_dry_run_uses_separate_db(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    from scraper.acquisition_db import get_connection, init_acquisition_db
-    from scraper.cli import app
-
-    db_path = tmp_path / "acquisition.sqlite"
-
-    runner = CliRunner()
-    result = runner.invoke(
-        app,
-        [
-            "acquisition-apollo-search",
-            "--db-path",
-            str(db_path),
-            "--person-title",
-            "Owner",
-            "--person-location",
-            "Egypt",
-        ],
-    )
-
-    conn = get_connection(db_path)
-    init_acquisition_db(conn)
-    run = conn.execute("SELECT * FROM acquisition_runs").fetchone()
-    conn.close()
-
-    assert result.exit_code == 0
-    assert "Dry run created" in result.output
-    assert run["source_name"] == "apollo_people_search"
-
-
 def test_python_module_dispatch_knows_acquisition_commands() -> None:
     from scraper.__main__ import _COMMANDS
 
     assert "acquisition-ui" in _COMMANDS
     assert "acquisition-import-csv" in _COMMANDS
-    assert "acquisition-apollo-search" in _COMMANDS

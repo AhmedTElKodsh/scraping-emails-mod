@@ -53,7 +53,6 @@ def _parse_target_types(value: str) -> list[str]:
 def _build_pipeline(
     use_proxies: bool,
     headless: bool,
-    use_apollo: bool,
     no_browser: bool = False,
 ) -> Pipeline:
     from scraper.browser_client import Tier3Client
@@ -89,11 +88,6 @@ def scrape(
     limit: int = typer.Option(50, help="Max pages per category (YP only)"),
     output_dir: str = typer.Option("output", help="Output directory"),
     use_proxies: bool = typer.Option(False, "--use-proxies", help="Enable free proxy pool"),
-    use_apollo: bool = typer.Option(
-        False,
-        "--use-apollo",
-        help="Deprecated: Apollo browser/page scraping is blocked",
-    ),
     target_type: str = typer.Option("category", help="YP target type: category, brand, or keyword"),
     city: str = typer.Option("", "--city", help="Optional YP city slug or external id"),
     headless: bool = typer.Option(True, help="Browser headless mode (Tier 3)"),
@@ -105,20 +99,13 @@ def scrape(
     from scraper.rate_limiter import RateLimiter
 
     log = structlog.get_logger()
-    if use_apollo:
-        typer.echo(
-            "Apollo browser/page scraping is deprecated and blocked. "
-            "Use official Apollo APIs or CSV imports through the compliant acquisition plan.",
-            err=True,
-        )
-        raise typer.Exit(code=1)
 
     cfg = Settings()
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
 
-    pipeline = _build_pipeline(use_proxies, headless, use_apollo, no_browser=no_browser)
+    pipeline = _build_pipeline(use_proxies, headless, no_browser=no_browser)
     proxy_pool = _build_proxy_pool(use_proxies)
 
     from scraper.sites.yellowpages_eg import build_target_url, scrape_target
@@ -276,59 +263,6 @@ def acquisition_import_csv(
         f"Imported {result.businesses_written} businesses, "
         f"{result.people_written} people, and {result.contacts_written} contacts "
         f"from {result.rows_seen} CSV rows."
-    )
-
-
-@app.command("acquisition-apollo-search")
-def acquisition_apollo_search(
-    db_path: str = typer.Option(None, help="Acquisition SQLite DB path"),
-    person_title: list[str] = typer.Option(
-        ...,
-        "--person-title",
-        help="Apollo person title filter. Repeat for multiple titles.",
-    ),
-    person_location: list[str] = typer.Option(
-        ...,
-        "--person-location",
-        help="Apollo person location filter. Repeat for multiple locations.",
-    ),
-    q_keywords: str = typer.Option("", "--q-keywords", help="Optional Apollo keyword filter"),
-    person_seniority: list[str] = typer.Option(
-        [],
-        "--person-seniority",
-        help="Optional Apollo seniority filter. Repeat for multiple seniorities.",
-    ),
-    page: int = typer.Option(1, min=1, help="Apollo results page, capped at 500"),
-    per_page: int = typer.Option(25, min=1, help="Apollo rows per page, capped at 100"),
-    include_similar_titles: bool = typer.Option(True, help="Include similar Apollo titles"),
-    dry_run: bool = typer.Option(True, "--dry-run/--live", help="Create a run without API access"),
-    api_key: str = typer.Option("", help="Apollo API key; defaults to APOLLO_API_KEY"),
-) -> None:
-    """Run official Apollo People Search into the separate acquisition database."""
-    from scraper.apollo_people_search import run_people_search
-    from scraper.config import Settings
-
-    cfg = Settings()
-    result = run_people_search(
-        db_path=db_path or cfg.acquisition_db_path,
-        api_key=api_key or cfg.apollo_api_key,
-        person_titles=person_title,
-        person_locations=person_location,
-        q_keywords=q_keywords,
-        person_seniorities=person_seniority,
-        include_similar_titles=include_similar_titles,
-        page=page,
-        per_page=per_page,
-        dry_run=dry_run,
-        base_url=cfg.apollo_api_base_url,
-    )
-    if result.dry_run:
-        typer.echo(f"Dry run created run #{result.run_id}; no Apollo request was sent.")
-        return
-    typer.echo(
-        f"Apollo People Search run #{result.run_id}: saw {result.people_seen} people, "
-        f"wrote {result.businesses_written} businesses, {result.people_written} people, "
-        f"and {result.contacts_written} website contacts."
     )
 
 
