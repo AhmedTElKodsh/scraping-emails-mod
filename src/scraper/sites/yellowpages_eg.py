@@ -23,7 +23,24 @@ log = structlog.get_logger()
 
 BASE_URL = "https://yellowpages.com.eg"
 TARGET_TYPES = {"category", "brand", "keyword"}
-ARABIC_ROLE_SEARCH_TERMS = {"مصنع", "مستورد", "موزع"}
+ARABIC_ROLE_SEARCH_TERMS = {
+    "مصنع",
+    "استيراد",
+    "تصدير",
+    "استيراد وتصدير",
+    "توزيع",
+}
+SEARCH_ALIASES = {
+    "factory": "factory",
+    "import": "import",
+    "export": "export",
+    "distribution": "distribution",
+    "مصنع": "factory",
+    "استيراد": "import",
+    "تصدير": "export",
+    "توزيع": "distribution",
+}
+CATEGORY_ALIASES = {"استيراد وتصدير": "import-&-export"}
 
 # Site-wide footer/chrome emails that appear on every profile — never per-business.
 _EMAIL_DENYLIST = {"customercare@yellow.com.eg"}

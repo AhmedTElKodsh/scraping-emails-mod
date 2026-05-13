@@ -6,7 +6,35 @@ from typing import Any
 from scraper.storage import Backend, open_connection, placeholder
 from scraper.taxonomy import load_seed, populate_from_seed
 
-ARABIC_ROLE_TERMS = {"مصنع", "مستورد", "موزع"}
+ARABIC_ROLE_TERMS = {
+    "مصنع",
+    "استيراد",
+    "تصدير",
+    "استيراد وتصدير",
+    "توزيع",
+}
+RELATED_CATEGORY_TARGETS = {
+    "import-&-export",
+    "import-export",
+    "import export",
+    "factory",
+    "factories",
+    "factory-equipment-and-supplies",
+    "distribution",
+    "استيراد وتصدير",
+    "مصنع",
+    "توزيع",
+}
+RELATED_KEYWORD_TARGETS = {
+    "import",
+    "export",
+    "factory",
+    "distribution",
+    "استيراد",
+    "تصدير",
+    "مصنع",
+    "توزيع",
+}
 
 def _open(db_path: str | Path) -> tuple[Any, Backend]:
     return open_connection(db_path)
