@@ -4,7 +4,19 @@
     {"slug": "hotels", "name": "Hotels"},
     {"slug": "hospitals", "name": "Hospitals"},
     {"slug": "schools", "name": "Schools"},
-    {"slug": "automotive", "name": "Automotive"}
+    {"slug": "automotive", "name": "Automotive"},
+    {"slug": "import-&-export", "name": "Import & Export"},
+    {"slug": "factory-equipment-and-supplies", "name": "Factory Equipment and Supplies"}
+  ],
+  "keywords": [
+    {"slug": "factory", "name": "Factory"},
+    {"slug": "import", "name": "Import"},
+    {"slug": "export", "name": "Export"},
+    {"slug": "distribution", "name": "Distribution"},
+    {"slug": "مصنع", "name": "مصنع"},
+    {"slug": "استيراد", "name": "استيراد"},
+    {"slug": "تصدير", "name": "تصدير"},
+    {"slug": "توزيع", "name": "توزيع"}
   ],
   "locations": [
     {"slug": "cairo", "name": "Cairo", "type": "city"},

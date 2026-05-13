@@ -28,14 +28,17 @@ ARABIC_ROLE_SEARCH_TERMS = {
     "استيراد",
     "تصدير",
     "استيراد وتصدير",
+    "توزيع",
 }
 SEARCH_ALIASES = {
     "factory": "factory",
     "import": "import",
     "export": "export",
+    "distribution": "distribution",
     "مصنع": "factory",
     "استيراد": "import",
     "تصدير": "export",
+    "توزيع": "distribution",
 }
 CATEGORY_ALIASES = {"استيراد وتصدير": "import-&-export"}
 

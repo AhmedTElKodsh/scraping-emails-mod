@@ -22,6 +22,7 @@ ARABIC_ROLE_SEARCH_TERMS = {
     "استيراد",
     "تصدير",
     "استيراد وتصدير",
+    "توزيع",
 }
 RELATED_CATEGORY_TARGETS = {
     "import-&-export",
@@ -31,6 +32,8 @@ RELATED_CATEGORY_TARGETS = {
     "factories",
     "استيراد وتصدير",
     "مصنع",
+    "distribution",
+    "توزيع",
 }
 RELATED_KEYWORD_TARGETS = {
     "import",
@@ -39,6 +42,8 @@ RELATED_KEYWORD_TARGETS = {
     "استيراد",
     "تصدير",
     "مصنع",
+    "distribution",
+    "توزيع",
 }
 
 
@@ -413,7 +418,8 @@ def _print_dry_run_summary(conn: Any) -> None:
             f"{_row_value(row, 'pages', 2) or 0} pages, "
             f"{_row_value(row, 'rows', 3) or 0} rows"
         )
-    pending = conn.execute("SELECT COUNT(*) FROM scrape_jobs WHERE status='pending'").fetchone()[0]
+    row = conn.execute("SELECT COUNT(*) AS count FROM scrape_jobs WHERE status='pending'").fetchone()
+    pending = _row_value(row, 'count', 0)
     print(f"  Total pending jobs: {pending}")
 
 

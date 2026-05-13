@@ -11,6 +11,7 @@ ARABIC_ROLE_TERMS = {
     "استيراد",
     "تصدير",
     "استيراد وتصدير",
+    "توزيع",
 }
 RELATED_CATEGORY_TARGETS = {
     "import-&-export",
@@ -18,16 +19,21 @@ RELATED_CATEGORY_TARGETS = {
     "import export",
     "factory",
     "factories",
+    "factory-equipment-and-supplies",
+    "distribution",
     "استيراد وتصدير",
     "مصنع",
+    "توزيع",
 }
 RELATED_KEYWORD_TARGETS = {
     "import",
     "export",
     "factory",
+    "distribution",
     "استيراد",
     "تصدير",
     "مصنع",
+    "توزيع",
 }
 
 def _open(db_path: str | Path) -> tuple[Any, Backend]:
