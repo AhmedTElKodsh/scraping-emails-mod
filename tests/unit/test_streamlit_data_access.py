@@ -550,12 +550,18 @@ def test_streamlit_full_crawl_uses_http_tiers_only(monkeypatch, tmp_path: Path) 
     db_path = tmp_path / "test.sqlite"
     seed_path = tmp_path / "seed.json"
     seed_path.write_text(
-        """{
-          "categories": [{"slug": "restaurants", "name": "Restaurants"}],
-          "locations": [{"slug": "cairo", "name": "Cairo", "type": "city"}],
-          "brands": [],
-          "keywords": []
-        }""",
+        "{\n"
+        "  \"categories\": [{\"slug\": \"restaurants\", \"name\": \"Restaurants\"}],\n"
+        "  \"locations\": [{\"slug\": \"cairo\", \"name\": \"Cairo\", \"type\": \"city\"}],\n"
+        "  \"brands\": [],\n"
+        "  \"keywords\": [\n"
+        "    {\"slug\": \"\u0645\u0635\u0646\u0639\", \"name\": \"\u0645\u0635\u0646\u0639\"},\n"
+        "    {\"slug\": \"\u0627\u0633\u062a\u064a\u0631\u0627\u062f\", \"name\": \"\u0627\u0633\u062a\u064a\u0631\u0627\u062f\"},\n"
+        "    {\"slug\": \"\u062a\u0635\u062f\u064a\u0631\", \"name\": \"\u062a\u0635\u062f\u064a\u0631\"},\n"
+        "    {\"slug\": \"\u0627\u0633\u062a\u064a\u0631\u0627\u062f \u0648\u062a\u0635\u062f\u064a\u0631\", \"name\": \"\u0627\u0633\u062a\u064a\u0631\u0627\u062f \u0648\u062a\u0635\u062f\u064a\u0631\"},\n"
+        "    {\"slug\": \"\u062a\u0648\u0632\u064a\u0639\", \"name\": \"\u062a\u0648\u0632\u064a\u0639\"}\n"
+        "  ]\n"
+        "}",
         encoding="utf-8",
     )
     captured: dict[str, object] = {}
@@ -580,10 +586,15 @@ def test_streamlit_full_crawl_uses_http_tiers_only(monkeypatch, tmp_path: Path) 
 
     assert captured["headless"] is False
     assert captured["target_types"] == ["keyword"]
-    assert captured["target_slugs_by_type"] == {
-        "category": [],
-        "keyword": [],
+    # Default plan expands all priority Arabic keywords to include their English equivalents
+    expected_keywords = {
+        "\u0645\u0635\u0646\u0639", "factory",
+        "\u0627\u0633\u062a\u064a\u0631\u0627\u062f", "import",
+        "\u062a\u0635\u062f\u064a\u0631", "export",
+        "\u0627\u0633\u062a\u064a\u0631\u0627\u062f \u0648\u062a\u0635\u062f\u064a\u0631", "import-&-export",
+        "\u062a\u0648\u0632\u064a\u0639", "distribution",
     }
+    assert set(captured["target_slugs_by_type"]["keyword"]) == expected_keywords  # type: ignore[index]
     assert captured["city_slugs"] is None
     os.environ.pop("DB_PATH", None)
     os.environ.pop("DATABASE_URL", None)

@@ -489,6 +489,7 @@ if not businesses:
         st.info("No saved businesses match the selected filters.")
 else:
     df = pd.DataFrame(businesses)
+    language_choice = "English"  # Language toggle removed; default to English columns
     columns = [
         "business_name_ar" if language_choice == "العربية" else "business_name",
         "phone",
