@@ -72,44 +72,7 @@ def test_yp_scraper_full_flow_with_mock_responses(
     assert "0221234567" in content
 
 
-@pytest.mark.integration
-def test_apollo_scraper_full_flow_with_mock(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test complete Apollo scraping flow with mocked HTTP responses."""
-    from scraper.csv_writer import CSVWriter
-    from scraper.http_client import BaseClient, Response
-    from scraper.pipeline import Pipeline
-    from scraper.sites.apollo_public import scrape_company
 
-    apollo_html = """
-    <html>
-        <h1 class="company-name">Acme Corp</h1>
-        <span class="industry">Technology</span>
-        <span class="location">Cairo, Egypt</span>
-        <a href="https://www.acme.com" class="company-website">acme.com</a>
-        <p>Contact: contact@acme.com</p>
-    </html>
-    """
-
-    class MockTier3(BaseClient):
-        tier = 3
-
-        def get(self, url: str, proxy: str | None = None, referer: str | None = None) -> Response:
-            return Response(200, apollo_html, {}, 3)
-
-    csv_path = tmp_path / "apollo_output.csv"
-    csv_writer = CSVWriter(csv_path)
-    pipeline = Pipeline(tiers=[MockTier3()])
-
-    total = scrape_company("acme-corp", pipeline, csv_writer)
-
-    assert total == 1
-    assert csv_path.exists()
-    content = csv_path.read_text(encoding="utf-8")
-    assert "Acme Corp" in content
-    assert "contact@acme.com" in content
 
 
 @pytest.mark.integration

@@ -1,0 +1,605 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.14.4, pytest-9.0.3, pluggy-1.6.0 -- C:\Python314\python.exe
+cachedir: .pytest_cache
+rootdir: D:\AI Projects\Gentech\scraping-emails-mod
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.13.0, langsmith-0.8.3, asyncio-1.3.0, cov-7.1.0, recording-0.13.4, timeout-2.4.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 182 items
+
+tests/integration/test_full_scraper_flow.py::test_yp_scraper_full_flow_with_mock_responses FAILED [  0%]
+tests/integration/test_full_scraper_flow.py::test_apollo_scraper_full_flow_with_mock FAILED [  1%]
+tests/integration/test_full_scraper_flow.py::test_proxy_pool_integration_with_failure_tracking PASSED [  1%]
+tests/integration/test_full_scraper_flow.py::test_csv_resume_across_runs PASSED [  2%]
+tests/integration/test_pipeline_escalation.py::test_tier1_blocked_escalates_to_tier2 PASSED [  2%]
+tests/integration/test_pipeline_escalation.py::test_tier1_and_tier2_blocked_escalates_to_tier3 PASSED [  3%]
+tests/integration/test_pipeline_escalation.py::test_cf_200_with_challenge_body_triggers_escalation PASSED [  3%]
+tests/integration/test_pipeline_escalation.py::test_all_three_tiers_fail_raises PASSED [  4%]
+tests/unit/test_acquisition_csv.py::test_import_csv_creates_normalized_business_people_contacts PASSED [  4%]
+tests/unit/test_acquisition_csv.py::test_import_csv_requires_allowed_source PASSED [  5%]
+tests/unit/test_acquisition_data_access.py::test_load_acquisition_overview_reads_separate_database PASSED [  6%]
+tests/unit/test_acquisition_data_access.py::test_load_sources_returns_policy_fields PASSED [  6%]
+tests/unit/test_acquisition_policy.py::test_init_acquisition_db_seeds_default_sources_in_separate_database PASSED [  7%]
+tests/unit/test_acquisition_policy.py::test_disabled_source_cannot_run PASSED [  7%]
+tests/unit/test_acquisition_policy.py::test_unknown_terms_block_execution PASSED [  8%]
+tests/unit/test_acquisition_policy.py::test_paid_source_requires_explicit_budget PASSED [  8%]
+tests/unit/test_acquisition_policy.py::test_scraper_db_does_not_create_acquisition_sources_table PASSED [  9%]
+tests/unit/test_acquisition_policy.py::test_acquisition_businesses_include_yellowpages_merge_keys_plus_confidence PASSED [  9%]
+tests/unit/test_acquisition_policy.py::test_acquisition_db_backfills_merge_keys_for_existing_rows PASSED [ 10%]
+tests/unit/test_browser_client.py::test_stealth_applied_before_goto PASSED [ 10%]
+tests/unit/test_browser_client.py::test_ctx_and_browser_closed_on_success PASSED [ 11%]
+tests/unit/test_browser_client.py::test_ctx_and_browser_closed_on_exception PASSED [ 12%]
+tests/unit/test_browser_client.py::test_headers_populated_from_response PASSED [ 12%]
+tests/unit/test_browser_client.py::test_proxy_passed_to_launch PASSED    [ 13%]
+tests/unit/test_browser_client.py::test_no_proxy_when_none PASSED        [ 13%]
+tests/unit/test_browser_client.py::test_tier_is_3 PASSED                 [ 14%]
+tests/unit/test_cli.py::test_safe_slug_replaces_special_chars PASSED     [ 14%]
+tests/unit/test_cli.py::test_build_pipeline_includes_all_three_tiers_by_default PASSED [ 15%]
+tests/unit/test_cli.py::test_build_pipeline_omits_tier3_when_no_browser PASSED [ 15%]
+tests/unit/test_cli.py::test_build_proxy_pool_returns_none_when_disabled PASSED [ 16%]
+tests/unit/test_cli.py::test_build_proxy_pool_returns_none_when_no_live_proxies PASSED [ 17%]
+tests/unit/test_cli.py::test_build_proxy_pool_returns_pool_with_live_proxies PASSED [ 17%]
+tests/unit/test_cli.py::test_parse_target_types_accepts_comma_list PASSED [ 18%]
+tests/unit/test_cli.py::test_parse_target_types_rejects_unknown_type PASSED [ 18%]
+tests/unit/test_cli.py::test_crawl_all_no_browser_disables_browser_fallback FAILED [ 19%]
+tests/unit/test_cli.py::test_acquisition_ui_command_launches_separate_app PASSED [ 19%]
+tests/unit/test_cli.py::test_acquisition_import_csv_command_uses_separate_db PASSED [ 20%]
+tests/unit/test_cli.py::test_python_module_dispatch_knows_acquisition_commands PASSED [ 20%]
+tests/unit/test_config.py::test_defaults_load_without_env PASSED         [ 21%]
+tests/unit/test_config.py::test_settings_import_is_fast PASSED           [ 21%]
+tests/unit/test_config.py::test_env_override PASSED                      [ 22%]
+tests/unit/test_config.py::test_dotenv_override PASSED                   [ 23%]
+tests/unit/test_config.py::test_env_values_override_dotenv PASSED        [ 23%]
+tests/unit/test_config.py::test_dotenv_override_ignores_utf8_bom PASSED  [ 24%]
+tests/unit/test_config.py::test_invalid_delay_raises PASSED              [ 24%]
+tests/unit/test_config.py::test_invalid_retries_raises PASSED            [ 25%]
+tests/unit/test_crawl_plan.py::test_full_dataset_crawl_uses_category_and_keyword_targets PASSED [ 25%]
+tests/unit/test_crawl_plan.py::test_default_scoped_targets_limit_full_crawl PASSED [ 26%]
+tests/unit/test_crawl_plan.py::test_selected_target_without_city_still_covers_every_city PASSED [ 26%]
+tests/unit/test_crawl_plan.py::test_selected_cities_scope_all_targets_to_those_cities PASSED [ 27%]
+tests/unit/test_csv_writer.py::test_creates_file_with_header PASSED      [ 28%]
+tests/unit/test_csv_writer.py::test_dedup_same_url_same_run PASSED       [ 28%]
+tests/unit/test_csv_writer.py::test_dedup_email_across_urls_case_insensitive PASSED [ 29%]
+tests/unit/test_csv_writer.py::test_resume_dedups_url PASSED             [ 29%]
+tests/unit/test_csv_writer.py::test_no_duplicate_header_on_append PASSED [ 30%]
+tests/unit/test_csv_writer.py::test_arabic_business_name_utf8 PASSED     [ 30%]
+tests/unit/test_csv_writer.py::test_result_with_no_email_writes_empty_row PASSED [ 31%]
+tests/unit/test_csv_writer.py::test_multiple_emails_write_multiple_rows PASSED [ 31%]
+tests/unit/test_csv_writer.py::test_seen_count_reflects_total PASSED     [ 32%]
+tests/unit/test_db.py::test_init_creates_all_tables PASSED               [ 32%]
+tests/unit/test_db.py::test_init_adds_new_taxonomy_and_facet_columns PASSED [ 33%]
+tests/unit/test_db.py::test_init_seeds_arabic_role_terms_as_categories_and_keywords PASSED [ 34%]
+tests/unit/test_db.py::test_business_facets_are_unique_per_business_type_and_slug PASSED [ 34%]
+tests/unit/test_db.py::test_init_is_idempotent PASSED                    [ 35%]
+tests/unit/test_db.py::test_init_migrates_legacy_scrape_jobs_before_indexing PASSED [ 35%]
+tests/unit/test_db.py::test_init_backfills_facets_for_single_legacy_productive_job PASSED [ 36%]
+tests/unit/test_db.py::test_init_does_not_guess_facets_for_multiple_legacy_productive_jobs PASSED [ 36%]
+tests/unit/test_db.py::test_init_rebuilds_location_facets_from_business_addresses PASSED [ 37%]
+tests/unit/test_db.py::test_scrape_job_unique_constraint PASSED          [ 37%]
+tests/unit/test_db.py::test_business_unique_on_source_url PASSED         [ 38%]
+tests/unit/test_db.py::test_wal_mode_enabled PASSED                      [ 39%]
+tests/unit/test_email_extract.py::test_decode_cfemail_known_vectors PASSED [ 39%]
+tests/unit/test_email_extract.py::test_decode_cfemail_invalid_hex_raises PASSED [ 40%]
+tests/unit/test_email_extract.py::test_decode_cfemail_empty_raises PASSED [ 40%]
+tests/unit/test_email_extract.py::test_extract_emails_standard_regex PASSED [ 41%]
+tests/unit/test_email_extract.py::test_extract_emails_deduplication PASSED [ 41%]
+tests/unit/test_email_extract.py::test_extract_emails_global_seen_set PASSED [ 42%]
+tests/unit/test_email_extract.py::test_extract_emails_cfemail_attribute PASSED [ 42%]
+tests/unit/test_email_extract.py::test_extract_emails_obfuscated_at PASSED [ 43%]
+tests/unit/test_email_extract.py::test_extract_emails_mailto_href PASSED [ 43%]
+tests/unit/test_email_extract.py::test_extract_emails_rejects_junk_prefixes PASSED [ 44%]
+tests/unit/test_email_extract.py::test_extract_emails_rejects_malformed PASSED [ 45%]
+tests/unit/test_http_client.py::test_response_ok_property PASSED         [ 45%]
+tests/unit/test_http_client.py::test_response_is_challenge_by_status PASSED [ 46%]
+tests/unit/test_http_client.py::test_response_is_challenge_by_body PASSED [ 46%]
+tests/unit/test_http_client.py::test_response_is_challenge_limits_scan_size PASSED [ 47%]
+tests/unit/test_http_client.py::test_tier2_clearance_valid_when_fresh PASSED [ 47%]
+tests/unit/test_http_client.py::test_tier2_clearance_invalid_when_expired PASSED [ 48%]
+tests/unit/test_http_client.py::test_tier2_clearance_invalid_when_none PASSED [ 48%]
+tests/unit/test_http_client.py::test_tier2_clearance_invalid_with_clock_skew PASSED [ 49%]
+tests/unit/test_http_client.py::test_tier1_returns_response_on_success PASSED [ 50%]
+tests/unit/test_http_client.py::test_tier1_returns_error_response_on_exception PASSED [ 50%]
+tests/unit/test_mass_crawl.py::test_done_job_skipped FAILED              [ 51%]
+tests/unit/test_mass_crawl.py::test_zero_row_done_arabic_role_jobs_are_retryable FAILED [ 51%]
+tests/unit/test_mass_crawl.py::test_failed_job_reset_to_pending_then_runs FAILED [ 52%]
+tests/unit/test_mass_crawl.py::test_stale_running_job_reset_to_failed_on_startup FAILED [ 52%]
+tests/unit/test_mass_crawl.py::test_exception_marks_job_failed_with_error_string FAILED [ 53%]
+tests/unit/test_mass_crawl.py::test_claim_job_only_claims_pending_or_failed_jobs FAILED [ 53%]
+tests/unit/test_mass_crawl.py::test_mark_progress_updates_running_job_counts FAILED [ 54%]
+tests/unit/test_mass_crawl.py::test_dry_run_prints_counts_no_crawl FAILED [ 54%]
+tests/unit/test_mass_crawl.py::test_load_targets_reads_requested_taxonomy_tables FAILED [ 55%]
+tests/unit/test_mass_crawl.py::test_load_targets_can_limit_to_selected_slugs FAILED [ 56%]
+tests/unit/test_mass_crawl.py::test_run_mass_crawl_headless_false_omits_browser_tier FAILED [ 56%]
+tests/unit/test_merge_preview.py::test_load_unified_business_preview_combines_yellowpages_and_acquisition PASSED [ 57%]
+tests/unit/test_merge_preview.py::test_load_unified_business_preview_uses_common_keys PASSED [ 57%]
+tests/unit/test_merge_preview.py::test_yellowpages_preview_does_not_migrate_live_database PASSED [ 58%]
+tests/unit/test_migrate_to_postgres.py::test_valid_location_parent_rows_only_keeps_existing_parents PASSED [ 58%]
+tests/unit/test_pipeline.py::test_tier1_success_returns_response PASSED  [ 59%]
+tests/unit/test_pipeline.py::test_tier1_fail_escalates_to_tier2 PASSED   [ 59%]
+tests/unit/test_pipeline.py::test_all_tiers_fail_raises_blocked_error PASSED [ 60%]
+tests/unit/test_pipeline.py::test_max_retries_per_tier_enforced PASSED   [ 60%]
+tests/unit/test_pipeline.py::test_404_does_not_escalate PASSED           [ 61%]
+tests/unit/test_pipeline.py::test_backoff_delays_are_applied PASSED      [ 62%]
+tests/unit/test_postgres_db.py::test_connection_kwargs_decodes_supabase_pooler_url_password PASSED [ 62%]
+tests/unit/test_proxy_pool.py::test_empty_pool_returns_none PASSED       [ 63%]
+tests/unit/test_proxy_pool.py::test_all_dead_proxies_returns_none PASSED [ 63%]
+tests/unit/test_proxy_pool.py::test_get_returns_proxy_url PASSED         [ 64%]
+tests/unit/test_proxy_pool.py::test_sticky_session_same_proxy_for_n_requests PASSED [ 64%]
+tests/unit/test_proxy_pool.py::test_sticky_session_rotates_after_count PASSED [ 65%]
+tests/unit/test_proxy_pool.py::test_record_failure_ejects_after_max PASSED [ 65%]
+tests/unit/test_proxy_pool.py::test_ejected_proxy_causes_none_return PASSED [ 66%]
+tests/unit/test_proxy_pool.py::test_alive_count_reflects_healthy_proxies PASSED [ 67%]
+tests/unit/test_proxy_pool.py::test_checker_called_for_each_proxy PASSED [ 67%]
+tests/unit/test_rate_limiter.py::test_wait_calls_delay_fn PASSED         [ 68%]
+tests/unit/test_rate_limiter.py::test_wait_returns_delay_used PASSED     [ 68%]
+tests/unit/test_rate_limiter.py::test_default_delay_within_bounds PASSED [ 69%]
+tests/unit/test_rate_limiter.py::test_injected_delay_fn_skips_sleep PASSED [ 69%]
+tests/unit/test_rate_limiter.py::test_jitter_distribution PASSED         [ 70%]
+tests/unit/test_sqlite_writer.py::test_write_returns_1_on_insert PASSED  [ 70%]
+tests/unit/test_sqlite_writer.py::test_duplicate_source_url_returns_0_not_raises PASSED [ 71%]
+tests/unit/test_sqlite_writer.py::test_dedup_persists_across_writer_instances PASSED [ 71%]
+tests/unit/test_sqlite_writer.py::test_null_email_handled PASSED         [ 72%]
+tests/unit/test_sqlite_writer.py::test_duplicate_business_with_new_facet_counts_as_saved_work PASSED [ 73%]
+tests/unit/test_sqlite_writer.py::test_has_url_and_write_facets_support_skip_without_detail_refetch PASSED [ 73%]
+tests/unit/test_sqlite_writer.py::test_update_arabic_fields_backfills_existing_business PASSED [ 74%]
+tests/unit/test_sqlite_writer.py::test_sqlite_writer_can_share_existing_connection PASSED [ 74%]
+tests/unit/test_sqlite_writer.py::test_write_backfills_business_category_and_city_from_facets PASSED [ 75%]
+tests/unit/test_storage.py::test_storage_target_honors_explicit_db_path_over_database_url PASSED [ 75%]
+tests/unit/test_storage.py::test_storage_target_uses_database_url_when_no_explicit_db_path PASSED [ 76%]
+tests/unit/test_streamlit_data_access.py::test_load_businesses_filters_by_single_facet_group FAILED [ 76%]
+tests/unit/test_streamlit_data_access.py::test_load_taxonomy_options_returns_table_fields FAILED [ 77%]
+tests/unit/test_streamlit_data_access.py::test_load_businesses_ands_across_facet_groups FAILED [ 78%]
+tests/unit/test_streamlit_data_access.py::test_load_businesses_arabic_role_keyword_matches_category_facet FAILED [ 78%]
+tests/unit/test_streamlit_data_access.py::test_search_facets_preserves_same_slug_across_category_and_keyword FAILED [ 79%]
+tests/unit/test_streamlit_data_access.py::test_load_businesses_search_query_prefers_facet_matches FAILED [ 79%]
+tests/unit/test_streamlit_data_access.py::test_load_matching_jobs_filters_selected_targets_and_city FAILED [ 80%]
+tests/unit/test_streamlit_data_access.py::test_load_facet_options_only_returns_values_with_saved_businesses FAILED [ 80%]
+tests/unit/test_streamlit_data_access.py::test_load_facet_options_returns_districts_for_selected_area FAILED [ 81%]
+tests/unit/test_streamlit_data_access.py::test_load_filter_options_returns_saved_business_facets FAILED [ 81%]
+tests/unit/test_streamlit_data_access.py::test_load_crawl_target_options_returns_scraped_taxonomy_items FAILED [ 82%]
+tests/unit/test_streamlit_data_access.py::test_ensure_seed_taxonomy_populates_empty_deployment_db FAILED [ 82%]
+tests/unit/test_streamlit_data_access.py::test_ensure_seed_taxonomy_skips_populated_db FAILED [ 83%]
+tests/unit/test_streamlit_data_access.py::test_ensure_seed_taxonomy_populates_empty_postgres_backend FAILED [ 84%]
+tests/unit/test_streamlit_data_access.py::test_streamlit_full_crawl_uses_http_tiers_only FAILED [ 84%]
+tests/unit/test_streamlit_data_access.py::test_streamlit_cloud_entrypoint_reruns_real_app FAILED [ 85%]
+tests/unit/test_streamlit_data_access.py::test_load_crawl_progress_summarizes_queue_and_saved_data FAILED [ 85%]
+tests/unit/test_taxonomy.py::test_parse_categories_from_fixture PASSED   [ 86%]
+tests/unit/test_taxonomy.py::test_parse_brands_from_related_index PASSED [ 86%]
+tests/unit/test_taxonomy.py::test_parse_keywords_from_keywords_index PASSED [ 87%]
+tests/unit/test_taxonomy.py::test_parse_last_page_finds_highest_pager PASSED [ 87%]
+tests/unit/test_taxonomy.py::test_parse_locations_hierarchy_from_fixture PASSED [ 88%]
+tests/unit/test_taxonomy.py::test_parse_locations_from_filter_inputs_with_parent_external_ids PASSED [ 89%]
+tests/unit/test_taxonomy.py::test_empty_page_returns_empty_list_not_raises PASSED [ 89%]
+tests/unit/test_taxonomy.py::test_pagination_followed PASSED             [ 90%]
+tests/unit/test_yp_parser.py::test_parse_listing_urls_extracts_profile_links FAILED [ 90%]
+tests/unit/test_yp_parser.py::test_build_category_url_with_governorate FAILED [ 91%]
+tests/unit/test_yp_parser.py::test_build_category_url_without_governorate FAILED [ 91%]
+tests/unit/test_yp_parser.py::test_build_target_url_for_category_brand_and_keyword FAILED [ 92%]
+tests/unit/test_yp_parser.py::test_parse_listing_cards_extracts_profile_url_and_visible_facets FAILED [ 92%]
+tests/unit/test_yp_parser.py::test_parse_listing_cards_normalizes_arabic_profile_and_facets FAILED [ 93%]
+tests/unit/test_yp_parser.py::test_parse_detail_extracts_name FAILED     [ 93%]
+tests/unit/test_yp_parser.py::test_parse_detail_extracts_email_from_mailto FAILED [ 94%]
+tests/unit/test_yp_parser.py::test_parse_detail_extracts_cfemail FAILED  [ 95%]
+tests/unit/test_yp_parser.py::test_parse_detail_phone_empty_for_ajax_endpoint FAILED [ 95%]
+tests/unit/test_yp_parser.py::test_parse_detail_extracts_facebook_url FAILED [ 96%]
+tests/unit/test_yp_parser.py::test_parse_detail_extracts_website FAILED  [ 96%]
+tests/unit/test_yp_parser.py::test_parse_detail_extracts_address FAILED  [ 97%]
+tests/unit/test_yp_parser.py::test_parse_detail_extracts_arabic_fields FAILED [ 97%]
+tests/unit/test_yp_parser.py::test_parse_detail_missing_field_no_crash FAILED [ 98%]
+tests/unit/test_yp_parser.py::test_is_empty_page_true_for_no_results FAILED [ 98%]
+tests/unit/test_yp_parser.py::test_is_empty_page_false_for_results FAILED [ 99%]
+tests/unit/test_yp_parser.py::test_scrape_target_reports_progress_for_empty_pages FAILED [100%]
+
+================================== FAILURES ===================================
+________________ test_yp_scraper_full_flow_with_mock_responses ________________
+tests\integration\test_full_scraper_flow.py:17: in test_yp_scraper_full_flow_with_mock_responses
+    from scraper.sites.yellowpages_eg import scrape_category
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+___________________ test_apollo_scraper_full_flow_with_mock ___________________
+tests\integration\test_full_scraper_flow.py:84: in test_apollo_scraper_full_flow_with_mock
+    from scraper.sites.apollo_public import scrape_company
+E   ModuleNotFoundError: No module named 'scraper.sites.apollo_public'
+_____________ test_crawl_all_no_browser_disables_browser_fallback _____________
+tests\unit\test_cli.py:101: in test_crawl_all_no_browser_disables_browser_fallback
+    monkeypatch.setattr("scraper.mass_crawl.run_mass_crawl", fake_run_mass_crawl)
+C:\Users\Admin\AppData\Roaming\Python\Python314\site-packages\_pytest\monkeypatch.py:104: in derive_importpath
+    target = resolve(module)
+             ^^^^^^^^^^^^^^^
+C:\Users\Admin\AppData\Roaming\Python\Python314\site-packages\_pytest\monkeypatch.py:79: in resolve
+    __import__(used)
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+____________________________ test_done_job_skipped ____________________________
+tests\unit\test_mass_crawl.py:9: in test_done_job_skipped
+    from scraper.mass_crawl import _get_or_create_job
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+______________ test_zero_row_done_arabic_role_jobs_are_retryable ______________
+tests\unit\test_mass_crawl.py:18: in test_zero_row_done_arabic_role_jobs_are_retryable
+    from scraper.mass_crawl import _should_skip_done_job
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_________________ test_failed_job_reset_to_pending_then_runs __________________
+tests\unit\test_mass_crawl.py:38: in test_failed_job_reset_to_pending_then_runs
+    from scraper.mass_crawl import _get_or_create_job
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+______________ test_stale_running_job_reset_to_failed_on_startup ______________
+tests\unit\test_mass_crawl.py:51: in test_stale_running_job_reset_to_failed_on_startup
+    from scraper.mass_crawl import _reset_stale_jobs
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+______________ test_exception_marks_job_failed_with_error_string ______________
+tests\unit\test_mass_crawl.py:61: in test_exception_marks_job_failed_with_error_string
+    from scraper.mass_crawl import _mark_failed
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+______________ test_claim_job_only_claims_pending_or_failed_jobs ______________
+tests\unit\test_mass_crawl.py:72: in test_claim_job_only_claims_pending_or_failed_jobs
+    from scraper.mass_crawl import _claim_job
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+________________ test_mark_progress_updates_running_job_counts ________________
+tests\unit\test_mass_crawl.py:105: in test_mark_progress_updates_running_job_counts
+    from scraper.mass_crawl import _mark_progress
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_____________________ test_dry_run_prints_counts_no_crawl _____________________
+tests\unit\test_mass_crawl.py:127: in test_dry_run_prints_counts_no_crawl
+    from scraper.mass_crawl import _print_dry_run_summary
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+______________ test_load_targets_reads_requested_taxonomy_tables ______________
+tests\unit\test_mass_crawl.py:141: in test_load_targets_reads_requested_taxonomy_tables
+    from scraper.mass_crawl import _load_targets
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+________________ test_load_targets_can_limit_to_selected_slugs ________________
+tests\unit\test_mass_crawl.py:167: in test_load_targets_can_limit_to_selected_slugs
+    from scraper.mass_crawl import _load_targets
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+____________ test_run_mass_crawl_headless_false_omits_browser_tier ____________
+tests\unit\test_mass_crawl.py:190: in test_run_mass_crawl_headless_false_omits_browser_tier
+    from scraper.mass_crawl import run_mass_crawl
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_____________ test_load_businesses_filters_by_single_facet_group ______________
+tests\unit\test_streamlit_data_access.py:9: in test_load_businesses_filters_by_single_facet_group
+    from app.data_access import load_businesses
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_______________ test_load_taxonomy_options_returns_table_fields _______________
+tests\unit\test_streamlit_data_access.py:40: in test_load_taxonomy_options_returns_table_fields
+    from app.data_access import load_taxonomy_options
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+________________ test_load_businesses_ands_across_facet_groups ________________
+tests\unit\test_streamlit_data_access.py:67: in test_load_businesses_ands_across_facet_groups
+    from app.data_access import load_businesses
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_______ test_load_businesses_arabic_role_keyword_matches_category_facet _______
+tests\unit\test_streamlit_data_access.py:100: in test_load_businesses_arabic_role_keyword_matches_category_facet
+    from app.data_access import load_businesses, load_crawl_target_options
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_____ test_search_facets_preserves_same_slug_across_category_and_keyword ______
+tests\unit\test_streamlit_data_access.py:136: in test_search_facets_preserves_same_slug_across_category_and_keyword
+    from app.data_access import search_facet_suggestions
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+___________ test_load_businesses_search_query_prefers_facet_matches ___________
+tests\unit\test_streamlit_data_access.py:177: in test_load_businesses_search_query_prefers_facet_matches
+    from app.data_access import load_businesses
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+__________ test_load_matching_jobs_filters_selected_targets_and_city __________
+tests\unit\test_streamlit_data_access.py:205: in test_load_matching_jobs_filters_selected_targets_and_city
+    from app.data_access import load_matching_jobs
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+______ test_load_facet_options_only_returns_values_with_saved_businesses ______
+tests\unit\test_streamlit_data_access.py:252: in test_load_facet_options_only_returns_values_with_saved_businesses
+    from app.data_access import load_facet_options
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_________ test_load_facet_options_returns_districts_for_selected_area _________
+tests\unit\test_streamlit_data_access.py:302: in test_load_facet_options_returns_districts_for_selected_area
+    from app.data_access import load_businesses, load_facet_options
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+___________ test_load_filter_options_returns_saved_business_facets ____________
+tests\unit\test_streamlit_data_access.py:339: in test_load_filter_options_returns_saved_business_facets
+    from app.data_access import load_filter_options
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+________ test_load_crawl_target_options_returns_scraped_taxonomy_items ________
+tests\unit\test_streamlit_data_access.py:389: in test_load_crawl_target_options_returns_scraped_taxonomy_items
+    from app.data_access import load_crawl_target_options
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+___________ test_ensure_seed_taxonomy_populates_empty_deployment_db ___________
+tests\unit\test_streamlit_data_access.py:440: in test_ensure_seed_taxonomy_populates_empty_deployment_db
+    from app.data_access import ensure_seed_taxonomy, load_crawl_target_options
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+________________ test_ensure_seed_taxonomy_skips_populated_db _________________
+tests\unit\test_streamlit_data_access.py:466: in test_ensure_seed_taxonomy_skips_populated_db
+    from app.data_access import ensure_seed_taxonomy
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_________ test_ensure_seed_taxonomy_populates_empty_postgres_backend __________
+tests\unit\test_streamlit_data_access.py:492: in test_ensure_seed_taxonomy_populates_empty_postgres_backend
+    from app import data_access
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_______________ test_streamlit_full_crawl_uses_http_tiers_only ________________
+tests\unit\test_streamlit_data_access.py:570: in test_streamlit_full_crawl_uses_http_tiers_only
+    monkeypatch.setattr("scraper.mass_crawl.run_mass_crawl", fake_run_mass_crawl)
+C:\Users\Admin\AppData\Roaming\Python\Python314\site-packages\_pytest\monkeypatch.py:104: in derive_importpath
+    target = resolve(module)
+             ^^^^^^^^^^^^^^^
+C:\Users\Admin\AppData\Roaming\Python\Python314\site-packages\_pytest\monkeypatch.py:79: in resolve
+    __import__(used)
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\mass_crawl.py", line 20
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_______________ test_streamlit_cloud_entrypoint_reruns_real_app _______________
+tests\unit\test_streamlit_data_access.py:620: in test_streamlit_cloud_entrypoint_reruns_real_app
+    assert [title.value for title in at.title] == [
+E   AssertionError: assert [] == ['YellowPages...s', 'Filters']
+E     
+E     Right contains 2 more items, first extra item: 'YellowPages Egypt - Business Contacts'
+E     
+E     Full diff:
+E     + []
+E     - [
+E     -     'YellowPages Egypt - Business Contacts',
+E     -     'Filters',
+E     - ]
+---------------------------- Captured stdout call -----------------------------
+\x1b[31m\u2500\u2500\x1b[0m\x1b[31m\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\x1b[0m\x1b[31m \x1b[0m\x1b[1;31mTraceback \x1b[0m\x1b[1;2;31m(most recent call last)\x1b[0m\x1b[31m \x1b[0m\x1b[31m\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\x1b[0m\x1b[31m\u2500\u2500\x1b[0m\n\x1b[31m \x1b[0m C:\\Users\\Admin\\AppData\\Roaming\\Python\\Python314\\site-packages\\streamlit\\runtime\\scri \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m ptrunner\\exec_code.py:129 in exec_func_with_error_handling                           \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m                                                                                      \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m C:\\Users\\Admin\\AppData\\Roaming\\Python\\Python314\\site-packages\\streamlit\\runtime\\scri \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m ptrunner\\script_runner.py:689 in code_to_exec                                        \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m                                                                                      \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m D:\\AI Projects\\Gentech\\scraping-emails-mod\\streamlit_app.py:21 in <module>           \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m                                                                                      \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m   \x1b[2m18 \x1b[0m                                                                                \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m   \x1b[2m19 \x1b[0m\x1b[2m# Streamlit reruns this wrapper for every widget event. A normal import would b\x1b[0m \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m   \x1b[2m20 \x1b[0m\x1b[2m# cached after the first run, so the real app would emit no elements on rerun.\x1b[0m  \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m \x1b[31m> \x1b[0m21 \x1b[1;4mrunpy.run_path(\x1b[0m\x1b[1;4;96mstr\x1b[0m\x1b[1;4m(ROOT / \x1b[0m\x1b[1;4;33m"\x1b[0m\x1b[1;4;33mapp\x1b[0m\x1b[1;4;33m"\x1b[0m\x1b[1;4m / \x1b[0m\x1b[1;4;33m"\x1b[0m\x1b[1;4;33mstreamlit_app.py\x1b[0m\x1b[1;4;33m"\x1b[0m\x1b[1;4m), run_name=\x1b[0m\x1b[1;4;33m"\x1b[0m\x1b[1;4;33m__main__\x1b[0m\x1b[1;4;33m"\x1b[0m\x1b[1;4m)\x1b[0m     \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m   \x1b[2m22 \x1b[0m                                                                                \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m in run_path:287                                                                      \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m in _run_module_code:98                                                               \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m in _run_code:88                                                                      \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m                                                                                      \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m D:\\AI Projects\\Gentech\\scraping-emails-mod\\app\\streamlit_app.py:23 in <module>       \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m                                                                                      \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m   \x1b[2m 20 \x1b[0m\x1b[94mimport\x1b[0m\x1b[90m \x1b[0m\x1b[4;96mstreamlit\x1b[0m\x1b[90m \x1b[0m\x1b[94mas\x1b[0m\x1b[90m \x1b[0m\x1b[4;96mst\x1b[0m                                                         \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m   \x1b[2m 21 \x1b[0m                                                                               \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m   \x1b[2m 22 \x1b[0m\x1b[94mfrom\x1b[0m\x1b[90m \x1b[0m\x1b[4;96mapp\x1b[0m\x1b[4;96m.\x1b[0m\x1b[4;96mcrawl_plan\x1b[0m\x1b[90m \x1b[0m\x1b[94mimport\x1b[0m build_crawl_plan                                    \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m \x1b[31m> \x1b[0m 23 \x1b[1;4;94mfrom\x1b[0m\x1b[1;4;90m \x1b[0m\x1b[1;4;96mapp\x1b[0m\x1b[1;4;96m.\x1b[0m\x1b[1;4;96mdata_access\x1b[0m\x1b[1;4;90m \x1b[0m\x1b[1;4;94mimport\x1b[0m\x1b[1;4m (\x1b[0m                                                  \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m   \x1b[2m 24 \x1b[0m\x1b[2m\u2502   \x1b[0m\x1b[1;4mensure_seed_taxonomy,\x1b[0m                                                      \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m   \x1b[2m 25 \x1b[0m\x1b[2m\u2502   \x1b[0m\x1b[1;4mload_businesses,\x1b[0m                                                           \x1b[31m \x1b[0m\n\x1b[31m \x1b[0m   \x1b[2m 26 \x1b[0m\x1b[2m\u2502   \x1b[0m\x1b[1;4mload_crawl_progress,\x1b[0m                                                       \x1b[31m \x1b[0m\n\x1b[31m\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\x1b[0m\n\x1b[91m\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\x1b[0m\n\x1b[91m \x1b[0m  D:\\AI Projects\\Gentech\\scraping-emails-mod\\app\\data_access.py:9                     \x1b[91m \x1b[0m\n\x1b[91m \x1b[0m <<<<<<< HEAD                                                                         \x1b[91m \x1b[0m\n\x1b[91m \x1b[0m \x1b[1;91m\u25b2\x1b[0m                                                                                    \x1b[91m \x1b[0m\n\x1b[91m\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\x1b[0m\n\x1b[1;91mSyntaxError: \x1b[0minvalid syntax
+---------------------------- Captured stderr call -----------------------------
+2026-05-13 14:52:23.494 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+__________ test_load_crawl_progress_summarizes_queue_and_saved_data ___________
+tests\unit\test_streamlit_data_access.py:635: in test_load_crawl_progress_summarizes_queue_and_saved_data
+    from app.data_access import load_crawl_progress
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\app\data_access.py", line 9
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_______________ test_parse_listing_urls_extracts_profile_links ________________
+tests\unit\test_yp_parser.py:7: in test_parse_listing_urls_extracts_profile_links
+    from scraper.sites.yellowpages_eg import parse_listing_urls
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+__________________ test_build_category_url_with_governorate ___________________
+tests\unit\test_yp_parser.py:17: in test_build_category_url_with_governorate
+    from scraper.sites.yellowpages_eg import build_category_url
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_________________ test_build_category_url_without_governorate _________________
+tests\unit\test_yp_parser.py:24: in test_build_category_url_without_governorate
+    from scraper.sites.yellowpages_eg import build_category_url
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+____________ test_build_target_url_for_category_brand_and_keyword _____________
+tests\unit\test_yp_parser.py:31: in test_build_target_url_for_category_brand_and_keyword
+    from scraper.sites.yellowpages_eg import build_target_url
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+______ test_parse_listing_cards_extracts_profile_url_and_visible_facets _______
+tests\unit\test_yp_parser.py:57: in test_parse_listing_cards_extracts_profile_url_and_visible_facets
+    from scraper.sites.yellowpages_eg import parse_listing_cards
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+________ test_parse_listing_cards_normalizes_arabic_profile_and_facets ________
+tests\unit\test_yp_parser.py:79: in test_parse_listing_cards_normalizes_arabic_profile_and_facets
+    from scraper.sites.yellowpages_eg import parse_listing_cards
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_______________________ test_parse_detail_extracts_name _______________________
+tests\unit\test_yp_parser.py:99: in test_parse_detail_extracts_name
+    from scraper.sites.yellowpages_eg import parse_detail
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+________________ test_parse_detail_extracts_email_from_mailto _________________
+tests\unit\test_yp_parser.py:107: in test_parse_detail_extracts_email_from_mailto
+    from scraper.sites.yellowpages_eg import parse_detail
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_____________________ test_parse_detail_extracts_cfemail ______________________
+tests\unit\test_yp_parser.py:115: in test_parse_detail_extracts_cfemail
+    from scraper.sites.yellowpages_eg import parse_detail
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_______________ test_parse_detail_phone_empty_for_ajax_endpoint _______________
+tests\unit\test_yp_parser.py:123: in test_parse_detail_phone_empty_for_ajax_endpoint
+    from scraper.sites.yellowpages_eg import parse_detail
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+___________________ test_parse_detail_extracts_facebook_url ___________________
+tests\unit\test_yp_parser.py:132: in test_parse_detail_extracts_facebook_url
+    from scraper.sites.yellowpages_eg import parse_detail
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_____________________ test_parse_detail_extracts_website ______________________
+tests\unit\test_yp_parser.py:140: in test_parse_detail_extracts_website
+    from scraper.sites.yellowpages_eg import parse_detail
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_____________________ test_parse_detail_extracts_address ______________________
+tests\unit\test_yp_parser.py:148: in test_parse_detail_extracts_address
+    from scraper.sites.yellowpages_eg import parse_detail
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+__________________ test_parse_detail_extracts_arabic_fields ___________________
+tests\unit\test_yp_parser.py:156: in test_parse_detail_extracts_arabic_fields
+    from scraper.sites.yellowpages_eg import merge_arabic_detail, parse_detail
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+__________________ test_parse_detail_missing_field_no_crash ___________________
+tests\unit\test_yp_parser.py:184: in test_parse_detail_missing_field_no_crash
+    from scraper.sites.yellowpages_eg import parse_detail
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+___________________ test_is_empty_page_true_for_no_results ____________________
+tests\unit\test_yp_parser.py:194: in test_is_empty_page_true_for_no_results
+    from scraper.sites.yellowpages_eg import is_empty_page
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+____________________ test_is_empty_page_false_for_results _____________________
+tests\unit\test_yp_parser.py:201: in test_is_empty_page_false_for_results
+    from scraper.sites.yellowpages_eg import is_empty_page
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+_____________ test_scrape_target_reports_progress_for_empty_pages _____________
+tests\unit\test_yp_parser.py:209: in test_scrape_target_reports_progress_for_empty_pages
+    from scraper.sites.yellowpages_eg import scrape_target
+E     File "D:\AI Projects\Gentech\scraping-emails-mod\src\scraper\sites\yellowpages_eg.py", line 26
+E       <<<<<<< HEAD
+E       ^^
+E   SyntaxError: invalid syntax
+=========================== short test summary info ===========================
+FAILED tests/integration/test_full_scraper_flow.py::test_yp_scraper_full_flow_with_mock_responses
+FAILED tests/integration/test_full_scraper_flow.py::test_apollo_scraper_full_flow_with_mock
+FAILED tests/unit/test_cli.py::test_crawl_all_no_browser_disables_browser_fallback
+FAILED tests/unit/test_mass_crawl.py::test_done_job_skipped -   File "D:\AI P...
+FAILED tests/unit/test_mass_crawl.py::test_zero_row_done_arabic_role_jobs_are_retryable
+FAILED tests/unit/test_mass_crawl.py::test_failed_job_reset_to_pending_then_runs
+FAILED tests/unit/test_mass_crawl.py::test_stale_running_job_reset_to_failed_on_startup
+FAILED tests/unit/test_mass_crawl.py::test_exception_marks_job_failed_with_error_string
+FAILED tests/unit/test_mass_crawl.py::test_claim_job_only_claims_pending_or_failed_jobs
+FAILED tests/unit/test_mass_crawl.py::test_mark_progress_updates_running_job_counts
+FAILED tests/unit/test_mass_crawl.py::test_dry_run_prints_counts_no_crawl -  ...
+FAILED tests/unit/test_mass_crawl.py::test_load_targets_reads_requested_taxonomy_tables
+FAILED tests/unit/test_mass_crawl.py::test_load_targets_can_limit_to_selected_slugs
+FAILED tests/unit/test_mass_crawl.py::test_run_mass_crawl_headless_false_omits_browser_tier
+FAILED tests/unit/test_streamlit_data_access.py::test_load_businesses_filters_by_single_facet_group
+FAILED tests/unit/test_streamlit_data_access.py::test_load_taxonomy_options_returns_table_fields
+FAILED tests/unit/test_streamlit_data_access.py::test_load_businesses_ands_across_facet_groups
+FAILED tests/unit/test_streamlit_data_access.py::test_load_businesses_arabic_role_keyword_matches_category_facet
+FAILED tests/unit/test_streamlit_data_access.py::test_search_facets_preserves_same_slug_across_category_and_keyword
+FAILED tests/unit/test_streamlit_data_access.py::test_load_businesses_search_query_prefers_facet_matches
+FAILED tests/unit/test_streamlit_data_access.py::test_load_matching_jobs_filters_selected_targets_and_city
+FAILED tests/unit/test_streamlit_data_access.py::test_load_facet_options_only_returns_values_with_saved_businesses
+FAILED tests/unit/test_streamlit_data_access.py::test_load_facet_options_returns_districts_for_selected_area
+FAILED tests/unit/test_streamlit_data_access.py::test_load_filter_options_returns_saved_business_facets
+FAILED tests/unit/test_streamlit_data_access.py::test_load_crawl_target_options_returns_scraped_taxonomy_items
+FAILED tests/unit/test_streamlit_data_access.py::test_ensure_seed_taxonomy_populates_empty_deployment_db
+FAILED tests/unit/test_streamlit_data_access.py::test_ensure_seed_taxonomy_skips_populated_db
+FAILED tests/unit/test_streamlit_data_access.py::test_ensure_seed_taxonomy_populates_empty_postgres_backend
+FAILED tests/unit/test_streamlit_data_access.py::test_streamlit_full_crawl_uses_http_tiers_only
+FAILED tests/unit/test_streamlit_data_access.py::test_streamlit_cloud_entrypoint_reruns_real_app
+FAILED tests/unit/test_streamlit_data_access.py::test_load_crawl_progress_summarizes_queue_and_saved_data
+FAILED tests/unit/test_yp_parser.py::test_parse_listing_urls_extracts_profile_links
+FAILED tests/unit/test_yp_parser.py::test_build_category_url_with_governorate
+FAILED tests/unit/test_yp_parser.py::test_build_category_url_without_governorate
+FAILED tests/unit/test_yp_parser.py::test_build_target_url_for_category_brand_and_keyword
+FAILED tests/unit/test_yp_parser.py::test_parse_listing_cards_extracts_profile_url_and_visible_facets
+FAILED tests/unit/test_yp_parser.py::test_parse_listing_cards_normalizes_arabic_profile_and_facets
+FAILED tests/unit/test_yp_parser.py::test_parse_detail_extracts_name -   File...
+FAILED tests/unit/test_yp_parser.py::test_parse_detail_extracts_email_from_mailto
+FAILED tests/unit/test_yp_parser.py::test_parse_detail_extracts_cfemail -   F...
+FAILED tests/unit/test_yp_parser.py::test_parse_detail_phone_empty_for_ajax_endpoint
+FAILED tests/unit/test_yp_parser.py::test_parse_detail_extracts_facebook_url
+FAILED tests/unit/test_yp_parser.py::test_parse_detail_extracts_website -   F...
+FAILED tests/unit/test_yp_parser.py::test_parse_detail_extracts_address -   F...
+FAILED tests/unit/test_yp_parser.py::test_parse_detail_extracts_arabic_fields
+FAILED tests/unit/test_yp_parser.py::test_parse_detail_missing_field_no_crash
+FAILED tests/unit/test_yp_parser.py::test_is_empty_page_true_for_no_results
+FAILED tests/unit/test_yp_parser.py::test_is_empty_page_false_for_results -  ...
+FAILED tests/unit/test_yp_parser.py::test_scrape_target_reports_progress_for_empty_pages
+======================= 49 failed, 133 passed in 4.53s ========================
