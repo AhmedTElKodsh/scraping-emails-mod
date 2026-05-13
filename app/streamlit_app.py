@@ -489,23 +489,25 @@ if not businesses:
         st.info("No saved businesses match the selected filters.")
 else:
     df = pd.DataFrame(businesses)
-    language_choice = "English"  # Language toggle removed; default to English columns
     columns = [
-        "business_name_ar" if language_choice == "العربية" else "business_name",
+        "business_name_ar",
         "phone",
         "email",
-        "website",
-        "address_ar" if language_choice == "العربية" else "address",
-        "category_ar" if language_choice == "العربية" else "category_slug",
+        "address_ar",
+        "category_slug",
         "source_url",
         "matched_facets",
         "scraped_at",
     ]
     visible_columns = [column for column in columns if column in df.columns]
     st.write(f"**{len(df)}** businesses found (showing up to 500)")
-    st.dataframe(df[visible_columns], width="stretch")
+    display_df = df[visible_columns].rename(columns={
+        "business_name_ar": "business_name",
+        "address_ar": "address",
+    })
+    st.dataframe(display_df, width="stretch")
 
-    csv_data = df.drop_duplicates(subset=["source_url"]).to_csv(index=False).encode("utf-8-sig")
+    csv_data = display_df.drop_duplicates(subset=["source_url"]).to_csv(index=False).encode("utf-8-sig")
     st.download_button(
         "Download CSV",
         csv_data,

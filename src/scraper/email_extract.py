@@ -2,7 +2,7 @@ import re
 
 from email_validator import EmailNotValidError, validate_email
 
-_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@(?:[a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,}")
 _JUNK_PREFIXES = frozenset({"noreply", "no-reply", "donotreply", "mailer-daemon", "postmaster"})
 _CFEMAIL_RE = re.compile(r'data-cfemail="([0-9a-fA-F]+)"')
 _OBFUSCATION_RE = re.compile(r"\s*\[at\]\s*|\s*\(at\)\s*|\s+at\s+", re.IGNORECASE)
@@ -32,7 +32,9 @@ def _add_if_valid(email: str, seen: set[str], found: list[str]) -> None:
         found.append(canonical)
 
 
-def extract_emails(html: str, seen: set[str]) -> list[str]:
+def extract_emails(html: str | None, seen: set[str]) -> list[str]:
+    if html is None:
+        return []
     found: list[str] = []
     for raw in _EMAIL_RE.findall(html):
         _add_if_valid(raw, seen, found)

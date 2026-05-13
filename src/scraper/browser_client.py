@@ -45,7 +45,7 @@ class Tier3Client(BaseClient):
                     page.set_extra_http_headers({"Referer": referer})
                 resp = page.goto(url, timeout=self._timeout, wait_until="domcontentloaded")
                 status = resp.status if resp else 0
-                headers = dict(resp.headers) if resp else {}
+                headers = dict(resp.headers) if resp and resp.headers else {}
                 text = page.content()
                 # Limit content size to prevent memory exhaustion
                 if len(text) > 10_000_000:
@@ -58,6 +58,12 @@ class Tier3Client(BaseClient):
                 return Response(status_code=0, text="", headers={}, tier=3)
             finally:
                 if ctx:
-                    ctx.close()
+                    try:
+                        ctx.close()
+                    except Exception:
+                        pass
                 if browser:
-                    browser.close()
+                    try:
+                        browser.close()
+                    except Exception:
+                        pass

@@ -21,7 +21,7 @@ class ProxyPool:
         self._max_failures = max_failures
         self._sticky_count = sticky_count
         self._pool: list[_ProxyEntry] = [
-            _ProxyEntry(url=p) for p in proxies if self._checker(p)
+            _ProxyEntry(url=p) for p in proxies if p and p.strip() and self._checker(p)
         ]
         self._current: _ProxyEntry | None = None
         self._current_uses: int = 0

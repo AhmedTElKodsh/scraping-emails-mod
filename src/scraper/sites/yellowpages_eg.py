@@ -290,11 +290,12 @@ def _crawl_facets(
     city_slug: str | None,
 ) -> list[Facet]:
     facets = list(listing_facets)
+    is_arabic_slug = slug in SEARCH_ALIASES and any(ord(c) > 127 for c in slug)
     source_facet = Facet(
         type=target_type,
         slug=slug,
         name=SEARCH_ALIASES.get(slug, CATEGORY_ALIASES.get(slug, slug)),
-        name_ar=slug if slug in SEARCH_ALIASES or slug in CATEGORY_ALIASES else "",
+        name_ar=slug if is_arabic_slug or slug in CATEGORY_ALIASES else "",
     )
     if not any(f.type == source_facet.type and f.slug == source_facet.slug for f in facets):
         facets.append(source_facet)

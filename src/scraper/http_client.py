@@ -22,14 +22,19 @@ class Response:
         return 200 <= self.status_code < 300
 
     def is_challenge(self) -> bool:
-        triggers = ["cf-challenge", "just a moment", "attention required", "_cf_chl"]
-        # Limit scan to first 100KB to prevent memory exhaustion on large responses
-        body_sample = self.text[:100000] if len(self.text) > 100000 else self.text
+        if self.status_code in (0, 403, 429, 500, 503):
+            return True
+        # Check Cloudflare-specific markers before scanning generic text.
+        body_sample = ((self.text or "") or "")[:100000]
+        for marker in ("cf-challenge", "_cf_chl", "cf_browser"):
+            if marker in body_sample:
+                return True
         body_lower = body_sample.lower()
-        # status=0 is a network-level failure; escalate tiers for those too.
-        return self.status_code in (0, 403, 429, 500, 503) or any(
-            t in body_lower for t in triggers
-        )
+        if "just a moment" in body_lower and "cloudflare" in body_lower:
+            return True
+        if "attention required" in body_lower and "verify" in body_lower:
+            return True
+        return False
 
 
 class BaseClient(ABC):
@@ -106,8 +111,7 @@ class Tier2Client(BaseClient):
         if self._clearance_cookie is None or self._clearance_at is None:
             return False
         age = (datetime.now(UTC) - self._clearance_at).total_seconds()
-        # Guard against clock skew - negative age means future timestamp
-        return age >= 0 and age < self._CLEARANCE_TTL
+        return 0 < age < self._CLEARANCE_TTL
 
     def get(self, url: str, proxy: str | None = None, referer: str | None = None) -> Response:
         import cloudscraper

@@ -46,7 +46,7 @@ class CSVWriter:
     def _load_existing(self) -> None:
         if not self._path.exists():
             return
-        with self._path.open(newline="", encoding="utf-8") as f:
+        with self._path.open(newline="", encoding="utf-8-sig") as f:
             for row in csv.DictReader(f):
                 email = row.get("email")
                 if email:
@@ -55,8 +55,10 @@ class CSVWriter:
                 if url:
                     self._seen_urls.add(url.strip())
 
-    def write(self, result: ScrapeResult) -> int:
+    def write(self, result: ScrapeResult | None) -> int:
         """Write result. Returns 1 if written, 0 if duplicate (best-effort in-process dedup)."""
+        if result is None:
+            return 0
         if result.url and result.url in self._seen_urls:
             return 0
         is_new = not self._path.exists()
@@ -65,7 +67,7 @@ class CSVWriter:
             writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
             if is_new:
                 writer.writeheader()
-            emails = [e for e in (result.emails or []) if e]
+            emails = [e for e in (result.emails or []) if isinstance(e, str) and e]
             new_emails = [e for e in emails if e.lower().strip() not in self._seen_emails]
             rows = new_emails if new_emails else [""]
             for email in rows:

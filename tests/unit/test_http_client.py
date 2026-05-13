@@ -25,10 +25,13 @@ def test_response_is_challenge_by_status() -> None:
 def test_response_is_challenge_by_body() -> None:
     from scraper.http_client import Response
 
-    assert Response(200, "just a moment", {}, 1).is_challenge() is True
     assert Response(200, "cf-challenge", {}, 1).is_challenge() is True
     assert Response(200, "_cf_chl", {}, 1).is_challenge() is True
-    assert Response(200, "attention required", {}, 1).is_challenge() is True
+    assert Response(200, "cf_browser", {}, 1).is_challenge() is True
+    assert Response(200, "just a moment cloudflare", {}, 1).is_challenge() is True
+    assert Response(200, "attention required verify", {}, 1).is_challenge() is True
+    assert Response(200, "just a moment", {}, 1).is_challenge() is False
+    assert Response(200, "attention required", {}, 1).is_challenge() is False
     assert Response(200, "normal content", {}, 1).is_challenge() is False
 
 
