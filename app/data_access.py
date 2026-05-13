@@ -36,6 +36,7 @@ RELATED_KEYWORD_TARGETS = {
     "توزيع",
 }
 
+
 def _open(db_path: str | Path) -> tuple[Any, Backend]:
     return open_connection(db_path)
 

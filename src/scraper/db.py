@@ -10,20 +10,24 @@ ARABIC_ROLE_TERMS = (
     "استيراد",
     "تصدير",
     "استيراد وتصدير",
+    "توزيع",
 )
 PRIORITY_SEARCH_TERMS = (
     "factory",
     "import",
     "export",
+    "distribution",
     *ARABIC_ROLE_TERMS,
 )
 PRIORITY_SEARCH_HREFS = {
     "factory": "/en/search/factory",
     "import": "/en/search/import",
     "export": "/en/search/export",
+    "distribution": "/en/search/distribution",
     "مصنع": "/en/search/factory",
     "استيراد": "/en/search/import",
     "تصدير": "/en/search/export",
+    "توزيع": "/en/search/distribution",
     "استيراد وتصدير": "/en/category/import-&-export",
 }
 ARABIC_ROLE_SEARCH_HREF = "/en/search/{}"
