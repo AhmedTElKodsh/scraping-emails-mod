@@ -3,7 +3,7 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from urllib.parse import quote, urlencode
 
 import structlog
@@ -276,7 +276,8 @@ def _backfill_existing_arabic_detail(
         if not arabic_resp.ok:
             return 0
         arabic = parse_detail(arabic_resp.text, arabic_url)
-        return int(update_arabic_fields(listing_url, arabic) or 0)
+        update_fn = cast(Callable[..., int], update_arabic_fields)
+        return int(update_fn(listing_url, arabic) or 0)
     except Exception:
         log.warning("arabic_detail_unavailable", url=arabic_url)
         return 0

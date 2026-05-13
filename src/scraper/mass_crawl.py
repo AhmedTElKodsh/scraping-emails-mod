@@ -308,12 +308,12 @@ def run_mass_crawl(
         return 0
 
     # Build pipeline
-    from scraper.http_client import Tier1Client, Tier2Client
+    from scraper.http_client import BaseClient, Tier1Client, Tier2Client
     from scraper.pipeline import Pipeline
     from scraper.proxy_pool import ProxyPool
     from scraper.rate_limiter import RateLimiter
 
-    tiers = [Tier1Client(), Tier2Client()]
+    tiers: list[BaseClient] = [Tier1Client(), Tier2Client()]
     if headless:
         from scraper.browser_client import Tier3Client
         tiers.append(Tier3Client(headless=headless))
