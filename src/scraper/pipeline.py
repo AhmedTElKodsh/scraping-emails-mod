@@ -26,9 +26,6 @@ class Pipeline:
             for attempt in range(self._max_retries):
                 log.info("fetch_attempt", url=url, tier=tier_n, attempt=attempt + 1)
                 resp = client.get(url, proxy=proxy, referer=referer)
-                if resp is None:
-                    log.error("fetch_no_response", url=url, tier=tier_n)
-                    continue
                 if not resp.is_challenge():
                     log.info("fetch_success", url=url, tier=tier_n)
                     return resp

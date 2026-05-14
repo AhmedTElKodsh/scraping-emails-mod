@@ -1,4 +1,5 @@
 import csv
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
@@ -7,9 +8,9 @@ from scraper.models import ScrapeResult
 
 
 class ResultWriter(Protocol):
-    def write(self, result: ScrapeResult) -> int:
+    def write(self, result: ScrapeResult | None) -> int:
         """Write result. Return 1 if written, 0 if duplicate.
-        Implementors MUST be idempotent on source_url."""
+        Implementors MUST be idempotent on source_url and MUST accept None gracefully."""
         ...
 
     def has_url(self, source_url: str) -> bool:
@@ -39,6 +40,7 @@ class CSVWriter:
 
     def __init__(self, path: Path) -> None:
         self._path = path
+        self._lock = threading.Lock()
         self._seen_emails: set[str] = set()
         self._seen_urls: set[str] = set()
         self._load_existing()
@@ -57,13 +59,18 @@ class CSVWriter:
 
     def write(self, result: ScrapeResult | None) -> int:
         """Write result. Returns 1 if written, 0 if duplicate (best-effort in-process dedup)."""
+        with self._lock:
+            return self._write_locked(result)
+
+    def _write_locked(self, result: ScrapeResult | None) -> int:
+        """Called with self._lock held."""
         if result is None:
             return 0
         if result.url and result.url in self._seen_urls:
             return 0
         is_new = not self._path.exists()
         written = 0
-        with self._path.open("a", newline="", encoding="utf-8") as f:
+        with self._path.open("a", newline="", encoding="utf-8-sig") as f:
             writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
             if is_new:
                 writer.writeheader()

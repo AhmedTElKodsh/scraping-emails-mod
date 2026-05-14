@@ -26,7 +26,7 @@ def test_creates_file_with_header(tmp_path: Path) -> None:
     writer = CSVWriter(path)
     writer.write(make_result())
 
-    rows = list(csv.DictReader(path.read_text(encoding="utf-8").splitlines()))
+    rows = list(csv.DictReader(path.read_text(encoding="utf-8-sig").splitlines()))
     assert len(rows) == 1
     assert "email" in rows[0]
     assert "business_name" in rows[0]
@@ -40,7 +40,7 @@ def test_dedup_same_url_same_run(tmp_path: Path) -> None:
     writer.write(make_result(url="https://example.com/biz/1", emails=["a@a.com"]))
     writer.write(make_result(url="https://example.com/biz/1", emails=["b@b.com"]))
 
-    rows = list(csv.DictReader(path.read_text(encoding="utf-8").splitlines()))
+    rows = list(csv.DictReader(path.read_text(encoding="utf-8-sig").splitlines()))
     assert len(rows) == 1
 
 
@@ -54,7 +54,7 @@ def test_dedup_email_across_urls_case_insensitive(tmp_path: Path) -> None:
         make_result(url="https://example.com/biz/2", emails=["info@example.com"])
     )
     assert written == 1
-    rows = list(csv.DictReader(path.read_text(encoding="utf-8").splitlines()))
+    rows = list(csv.DictReader(path.read_text(encoding="utf-8-sig").splitlines()))
     assert len(rows) == 2
     assert rows[1]["email"] == ""
 
@@ -83,7 +83,7 @@ def test_no_duplicate_header_on_append(tmp_path: Path) -> None:
     CSVWriter(path).write(make_result(url="https://example.com/biz/1", emails=["a@a.com"]))
     CSVWriter(path).write(make_result(url="https://example.com/biz/2", emails=["b@b.com"]))
 
-    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [line for line in path.read_text(encoding="utf-8-sig").splitlines() if line.strip()]
     header_count = sum(1 for line in lines if line.startswith("business_name"))
     assert header_count == 1
 
@@ -95,7 +95,7 @@ def test_arabic_business_name_utf8(tmp_path: Path) -> None:
     writer = CSVWriter(path)
     writer.write(make_result(business_name="مطعم القاهرة", emails=["cairo@example.com"]))
 
-    content = path.read_text(encoding="utf-8")
+    content = path.read_text(encoding="utf-8-sig")
     assert "مطعم القاهرة" in content
 
 
@@ -107,7 +107,7 @@ def test_result_with_no_email_writes_empty_row(tmp_path: Path) -> None:
     written = writer.write(make_result(emails=[]))
     assert written == 1
 
-    rows = list(csv.DictReader(path.read_text(encoding="utf-8").splitlines()))
+    rows = list(csv.DictReader(path.read_text(encoding="utf-8-sig").splitlines()))
     assert rows[0]["email"] == ""
 
 
@@ -119,7 +119,7 @@ def test_multiple_emails_write_multiple_rows(tmp_path: Path) -> None:
     written = writer.write(make_result(emails=["a@a.com", "b@b.com"]))
     assert written == 2
 
-    rows = list(csv.DictReader(path.read_text(encoding="utf-8").splitlines()))
+    rows = list(csv.DictReader(path.read_text(encoding="utf-8-sig").splitlines()))
     assert len(rows) == 2
 
 

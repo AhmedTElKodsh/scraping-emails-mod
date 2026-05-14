@@ -22,10 +22,11 @@ class Response:
         return 200 <= self.status_code < 300
 
     def is_challenge(self) -> bool:
-        if self.status_code in (0, 403, 429, 500, 503):
+        # 500 is a server error, not a bot-challenge — do not burn tier retries on it.
+        if self.status_code in (0, 403, 429, 503):
             return True
         # Check Cloudflare-specific markers before scanning generic text.
-        body_sample = ((self.text or "") or "")[:100000]
+        body_sample = self.text[:100000]
         for marker in ("cf-challenge", "_cf_chl", "cf_browser"):
             if marker in body_sample:
                 return True

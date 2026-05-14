@@ -467,6 +467,10 @@ def scrape_target(
                         proxy_pool.record_failure(detail_proxy)
                     detail_resp = None
                     break
+                if not detail_resp.ok:
+                    log.warning("detail_non_ok", url=listing_url, status=detail_resp.status_code)
+                    detail_resp = None
+                    break
                 result = parse_detail(detail_resp.text, listing_url)
                 arabic_url = arabic_profile_url(listing_url)
                 if arabic_url != listing_url:

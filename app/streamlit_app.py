@@ -276,19 +276,25 @@ filters = {
     "district": _selected_slugs(district_options, selected_districts),
 }
 
-# Expand Arabic keywords to include their English equivalents for scraping
-expanded_keywords = set(filters["keyword"])
-if "مصنع" in expanded_keywords:
-    expanded_keywords.update(["factory"])
-if "استيراد" in expanded_keywords:
-    expanded_keywords.update(["import"])
-if "تصدير" in expanded_keywords:
-    expanded_keywords.update(["export"])
-if "استيراد وتصدير" in expanded_keywords:
-    expanded_keywords.update(["import-&-export"])
-if "توزيع" in expanded_keywords:
-    expanded_keywords.update(["distribution"])
+_EXPANSION_MAP = {
+    "مصنع": "factory",
+    "استيراد": "import",
+    "تصدير": "export",
+    "استيراد وتصدير": "import-&-export",
+    "توزيع": "distribution",
+}
 
+
+def _expand_keywords(slugs: set[str]) -> set[str]:
+    result = set(slugs)
+    for arabic, english in _EXPANSION_MAP.items():
+        if arabic in result:
+            result.add(english)
+    return result
+
+
+# Expand Arabic keywords to include their English equivalents for scraping
+expanded_keywords = _expand_keywords(set(filters["keyword"]))
 target_slugs_by_type = {
     target_type: slugs
     for target_type, slugs in {
@@ -298,18 +304,7 @@ target_slugs_by_type = {
     }.items()
     if slugs
 }
-default_expanded_keywords = set(restricted_keyword_options.values())
-if "مصنع" in default_expanded_keywords:
-    default_expanded_keywords.update(["factory"])
-if "استيراد" in default_expanded_keywords:
-    default_expanded_keywords.update(["import"])
-if "تصدير" in default_expanded_keywords:
-    default_expanded_keywords.update(["export"])
-if "استيراد وتصدير" in default_expanded_keywords:
-    default_expanded_keywords.update(["import-&-export"])
-if "توزيع" in default_expanded_keywords:
-    default_expanded_keywords.update(["distribution"])
-
+default_expanded_keywords = _expand_keywords(set(restricted_keyword_options.values()))
 default_target_slugs_by_type = {
     "category": [],
     "keyword": list(default_expanded_keywords),
