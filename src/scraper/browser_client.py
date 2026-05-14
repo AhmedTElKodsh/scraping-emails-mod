@@ -3,7 +3,7 @@ from typing import Any, cast
 import structlog
 
 from scraper.fingerprint import get_profile
-from scraper.http_client import BaseClient, Response
+from scraper.http_client import BaseClient, Response, _redact_proxy_credentials
 
 log = structlog.get_logger()
 
@@ -51,7 +51,7 @@ class Tier3Client(BaseClient):
                 if len(text) > 10_000_000:
                     log.warning("tier3_content_truncated", url=url, original_size=len(text))
                     text = text[:10_000_000]
-                log.info("tier3_request", url=url, status=status)
+                log.info("tier3_request", url=url, status=status, proxy=_redact_proxy_credentials(proxy))
                 return Response(status_code=status, text=text, headers=headers, tier=3)
             except Exception as exc:
                 log.warning("tier3_error", url=url, error=str(exc), exc_type=type(exc).__name__)
@@ -60,10 +60,10 @@ class Tier3Client(BaseClient):
                 if ctx:
                     try:
                         ctx.close()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        log.warning("tier3_ctx_close_failed", error=str(exc), exc_type=type(exc).__name__)
                 if browser:
                     try:
                         browser.close()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        log.warning("tier3_browser_close_failed", error=str(exc), exc_type=type(exc).__name__)

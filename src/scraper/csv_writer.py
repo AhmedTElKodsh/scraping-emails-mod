@@ -68,7 +68,8 @@ class CSVWriter:
             return 0
         if result.url and result.url in self._seen_urls:
             return 0
-        is_new = not self._path.exists()
+        # Check file size to avoid TOCTOU race condition
+        is_new = not self._path.exists() or self._path.stat().st_size == 0
         written = 0
         with self._path.open("a", newline="", encoding="utf-8-sig") as f:
             writer = csv.DictWriter(f, fieldnames=FIELDNAMES)

@@ -10,6 +10,15 @@ from scraper.models import FingerprintProfile
 log = structlog.get_logger()
 
 
+def _redact_proxy_credentials(proxy: str | None) -> str | None:
+    """Redact username:password from proxy URL for logging."""
+    if not proxy:
+        return proxy
+    # Match http://user:pass@host:port or https://user:pass@host:port
+    import re
+    return re.sub(r'(https?://)([^:]+):([^@]+)@', r'\1***:***@', proxy)
+
+
 class Response:
     def __init__(self, status_code: int, text: str, headers: dict[str, str], tier: int) -> None:
         self.status_code = status_code
@@ -22,9 +31,11 @@ class Response:
         return 200 <= self.status_code < 300
 
     def is_challenge(self) -> bool:
-        # 500 is a server error, not a bot-challenge — do not burn tier retries on it.
-        if self.status_code in (0, 403, 429, 503):
+        # 0 = network failure, 403 = forbidden, 429 = rate limit
+        # 503 only if it contains challenge markers (not all 503s are challenges)
+        if self.status_code in (0, 403, 429):
             return True
+        
         # Check Cloudflare-specific markers before scanning generic text.
         body_sample = self.text[:100000]
         for marker in ("cf-challenge", "_cf_chl", "cf_browser"):
@@ -35,6 +46,14 @@ class Response:
             return True
         if "attention required" in body_lower and "verify" in body_lower:
             return True
+        
+        # 503 with challenge markers
+        if self.status_code == 503:
+            if any(marker in body_sample for marker in ("cf-challenge", "_cf_chl", "cf_browser")):
+                return True
+            if "cloudflare" in body_lower or "checking your browser" in body_lower:
+                return True
+        
         return False
 
 
@@ -88,7 +107,7 @@ class Tier1Client(BaseClient):
                 timeout=20,
                 allow_redirects=True,
             )
-            log.info("tier1_request", url=url, status=resp.status_code, proxy=proxy)
+            log.info("tier1_request", url=url, status=resp.status_code, proxy=_redact_proxy_credentials(proxy))
             return Response(
                 status_code=resp.status_code,
                 text=resp.text,
@@ -112,7 +131,7 @@ class Tier2Client(BaseClient):
         if self._clearance_cookie is None or self._clearance_at is None:
             return False
         age = (datetime.now(UTC) - self._clearance_at).total_seconds()
-        return 0 < age < self._CLEARANCE_TTL
+        return 0 <= age < self._CLEARANCE_TTL
 
     def get(self, url: str, proxy: str | None = None, referer: str | None = None) -> Response:
         import cloudscraper
@@ -144,6 +163,7 @@ class Tier2Client(BaseClient):
                 status=resp.status_code,
                 has_clearance=bool(cf_cookie),
                 reused_clearance=self.is_clearance_valid(),
+                proxy=_redact_proxy_credentials(proxy),
             )
             return Response(
                 status_code=resp.status_code,

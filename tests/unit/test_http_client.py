@@ -16,9 +16,13 @@ def test_response_ok_property() -> None:
 def test_response_is_challenge_by_status() -> None:
     from scraper.http_client import Response
 
+    assert Response(0, "", {}, 1).is_challenge() is True
     assert Response(403, "", {}, 1).is_challenge() is True
     assert Response(429, "", {}, 1).is_challenge() is True
-    assert Response(503, "", {}, 1).is_challenge() is True
+    # 503 without challenge markers should NOT be a challenge
+    assert Response(503, "Internal Server Error", {}, 1).is_challenge() is False
+    # 503 with challenge markers should be a challenge
+    assert Response(503, "cf-challenge", {}, 1).is_challenge() is True
     assert Response(200, "", {}, 1).is_challenge() is False
 
 
@@ -80,9 +84,20 @@ def test_tier2_clearance_invalid_with_clock_skew() -> None:
 
     client = Tier2Client()
     client._clearance_cookie = "test_cookie"
-    # Future timestamp (clock skew)
+    # Future timestamp (clock skew) - should now be invalid due to negative age
     client._clearance_at = datetime.now(UTC) + timedelta(seconds=100)
     assert client.is_clearance_valid() is False
+
+
+def test_tier2_clearance_valid_at_zero_age() -> None:
+    """Test that freshly obtained clearance (age=0) is valid."""
+    from scraper.http_client import Tier2Client
+
+    client = Tier2Client()
+    client._clearance_cookie = "test_cookie"
+    client._clearance_at = datetime.now(UTC)
+    # Should be valid immediately (age >= 0)
+    assert client.is_clearance_valid() is True
 
 
 def test_tier1_returns_response_on_success(monkeypatch: pytest.MonkeyPatch) -> None:

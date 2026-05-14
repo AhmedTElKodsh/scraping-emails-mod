@@ -20,11 +20,19 @@ class ProxyPool:
         self._checker = checker or self._default_check
         self._max_failures = max_failures
         self._sticky_count = sticky_count
+        # Filter out empty, whitespace-only, and invalid proxy URLs
         self._pool: list[_ProxyEntry] = [
-            _ProxyEntry(url=p) for p in proxies if p and p.strip() and self._checker(p)
+            _ProxyEntry(url=p.strip()) 
+            for p in proxies 
+            if p and p.strip() and self._is_valid_proxy_format(p.strip()) and self._checker(p.strip())
         ]
         self._current: _ProxyEntry | None = None
         self._current_uses: int = 0
+
+    @staticmethod
+    def _is_valid_proxy_format(proxy_url: str) -> bool:
+        """Basic validation of proxy URL format."""
+        return proxy_url.startswith(("http://", "https://", "socks4://", "socks5://"))
 
     @staticmethod
     def _default_check(proxy_url: str) -> bool:

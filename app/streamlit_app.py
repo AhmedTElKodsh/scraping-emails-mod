@@ -232,6 +232,11 @@ if restricted_keyword_options:
         list(restricted_keyword_options.keys()),
         key="selected_keywords",
     )
+    if selected_keywords:
+        st.sidebar.caption(
+            "ℹ️ Arabic keywords automatically include English equivalents "
+            "(e.g., 'مصنع' includes 'factory')"
+        )
 selected_cities = _sidebar_multiselect(
     "Cities",
     list(city_options.keys()),
@@ -458,7 +463,7 @@ def _render_data_table() -> None:
         if target_slugs_by_type and not matching_jobs:
             st.info(
                 "No saved businesses for the selected taxonomy yet. "
-                "Use Run Scoped Crawl to fetch them."
+                "Click 'Run Scoped Crawl' above to fetch them."
             )
         elif matching_jobs and any(job["status"] == "running" for job in matching_jobs):
             st.info("The selected crawl is running. Refresh shortly to see newly saved businesses.")
@@ -482,7 +487,7 @@ def _render_data_table() -> None:
         elif matching_jobs:
             st.info("Saved businesses exist for this crawl, but none match all selected filters.")
         else:
-            st.info("No saved businesses match the selected filters.")
+            st.info("No saved businesses match the selected filters. Try clearing filters or running a crawl.")
     else:
         df = pd.DataFrame(businesses)
         columns = [
@@ -490,27 +495,61 @@ def _render_data_table() -> None:
             "phone",
             "email",
             "address_ar",
-            "category_slug",
+            "category_ar",
             "source_url",
             "matched_facets",
             "scraped_at",
         ]
         visible_columns = [column for column in columns if column in df.columns]
-        st.write(f"**{len(df)}** businesses found (showing up to 500)")
+        total_count = len(df)
+        display_count = min(500, total_count)
+        st.write(f"**{total_count:,}** businesses found (displaying {display_count:,})")
+        if total_count > 500:
+            st.info(f"Showing first 500 rows. Use 'Download Filtered CSV' to get all {total_count:,} matching businesses.")
         display_df = df[visible_columns].rename(columns={
             "business_name_ar": "business_name",
             "address_ar": "address",
+            "category_ar": "category",
         })
         st.dataframe(display_df.head(500), width="stretch")
 
+        # Regular filtered CSV export
         csv_data = display_df.drop_duplicates(subset=["source_url"]).to_csv(index=False).encode("utf-8-sig")
-        st.download_button(
-            "Download CSV",
-            csv_data,
-            f"yp_export_{datetime.now().strftime('%Y%m%d')}.csv",
-            "text/csv; charset=utf-8-sig",
-            key="download_csv_button",
-        )
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button(
+                "Download Filtered CSV",
+                csv_data,
+                f"yp_filtered_{datetime.now().strftime('%Y%m%d')}.csv",
+                "text/csv; charset=utf-8-sig",
+                key="download_csv_button",
+                help="Downloads businesses matching current filters (up to 1M rows)",
+            )
+        
+        # Export ALL data button (no filters)
+        with col2:
+            if st.button("Export All Data (Unfiltered)", key="export_all_button", help="Downloads ALL businesses from database (may take time for large datasets)"):
+                with st.spinner("Loading all data from database..."):
+                    all_businesses = load_businesses(DB_PATH, filters={}, search_query="", limit=10_000_000)
+                    if all_businesses:
+                        all_df = pd.DataFrame(all_businesses)
+                        all_visible_columns = [column for column in columns if column in all_df.columns]
+                        all_display_df = all_df[all_visible_columns].rename(columns={
+                            "business_name_ar": "business_name",
+                            "address_ar": "address",
+                            "category_ar": "category",
+                        })
+                        all_csv_data = all_display_df.drop_duplicates(subset=["source_url"]).to_csv(index=False).encode("utf-8-sig")
+                        st.download_button(
+                            f"Download All {len(all_display_df):,} Businesses",
+                            all_csv_data,
+                            f"yp_all_data_{datetime.now().strftime('%Y%m%d')}.csv",
+                            "text/csv; charset=utf-8-sig",
+                            key="download_all_csv_button",
+                        )
+                        st.success(f"Prepared {len(all_display_df):,} businesses for download")
+                    else:
+                        st.warning("No businesses found in database")
 
 if active_crawl:
     @st.fragment(run_every=f"{AUTO_REFRESH_SECONDS}s")

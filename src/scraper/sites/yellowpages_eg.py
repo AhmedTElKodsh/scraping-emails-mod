@@ -188,6 +188,14 @@ def is_empty_page(html: str) -> bool:
     return len(parse_listing_urls(html)) == 0
 
 
+def _contains_arabic(text: str) -> bool:
+    """Check if text contains Arabic characters."""
+    if not text:
+        return False
+    # Arabic Unicode range: 0600-06FF
+    return any('\u0600' <= char <= '\u06FF' for char in text)
+
+
 def parse_detail(html: str, url: str) -> ScrapeResult:
     tree = HTMLParser(html)
     seen: set[str] = set(_EMAIL_DENYLIST)
@@ -216,12 +224,17 @@ def parse_detail(html: str, url: str) -> ScrapeResult:
     address = _first_text(tree, _ADDRESS_SELECTORS)
 
     is_ar = "/ar/" in url
+    # Validate that Arabic fields actually contain Arabic text
+    has_arabic_name = _contains_arabic(name)
+    has_arabic_category = _contains_arabic(category)
+    has_arabic_address = _contains_arabic(address)
+    
     return ScrapeResult(
         url=url,
         business_name=name,
-        business_name_ar=name if is_ar else "",
+        business_name_ar=name if (is_ar and has_arabic_name) else "",
         category=category,
-        category_ar=category if is_ar else "",
+        category_ar=category if (is_ar and has_arabic_category) else "",
         governorate=governorate,
         governorate_ar=governorate if is_ar else "",
         phone=phone,
@@ -229,7 +242,7 @@ def parse_detail(html: str, url: str) -> ScrapeResult:
         website=website,
         facebook_url=facebook_url,
         address=address,
-        address_ar=address if is_ar else "",
+        address_ar=address if (is_ar and has_arabic_address) else "",
         raw_html_hash=hashlib.md5(html.encode()).hexdigest(),
         scraped_at=datetime.now(UTC).isoformat(),
     )

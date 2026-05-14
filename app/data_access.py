@@ -568,7 +568,23 @@ def load_businesses(
     conn, backend = _open(db_path)
     ph = placeholder(backend)
     try:
-        query = "SELECT * FROM businesses b WHERE 1=1"
+        # Use COALESCE to fallback to English fields if Arabic fields are empty
+        query = """SELECT 
+            b.source_url,
+            COALESCE(NULLIF(b.business_name_ar, ''), b.business_name) AS business_name_ar,
+            COALESCE(NULLIF(b.category_ar, ''), b.category_slug) AS category_ar,
+            COALESCE(NULLIF(b.governorate_ar, ''), b.city_slug) AS governorate_ar,
+            COALESCE(NULLIF(b.address_ar, ''), b.address) AS address_ar,
+            b.phone,
+            b.email,
+            b.website,
+            b.facebook_url,
+            b.category_slug,
+            b.city_slug,
+            b.scraped_at,
+            b.source_tier,
+            b.raw_html_hash
+        FROM businesses b WHERE 1=1"""
         params: list[Any] = []
         for facet_type, slugs in filters.items():
             placeholders = ",".join(ph for _ in slugs)
@@ -631,10 +647,37 @@ def load_businesses(
         params.extend(order_params)
         params.append(limit)
         rows = conn.execute(query, params).fetchall()
+        
+        # Batch load facets to avoid N+1 queries
         businesses: list[dict[str, Any]] = []
+        source_urls = [dict(row)["source_url"] for row in rows]
+        
+        if source_urls:
+            # Load all facets in one query
+            facets_ph = ",".join(placeholder(backend) for _ in source_urls)
+            facet_rows = conn.execute(
+                f"""SELECT source_url, facet_type, name, name_ar, slug
+                FROM business_facets
+                WHERE source_url IN ({facets_ph})
+                ORDER BY source_url, facet_type, name, slug""",
+                source_urls,
+            ).fetchall()
+            
+            # Group facets by source_url
+            facets_by_url: dict[str, list[str]] = {}
+            for facet_row in facet_rows:
+                url = facet_row["source_url"]
+                primary = facet_row["name"] or facet_row["slug"]
+                arabic = facet_row["name_ar"] or ""
+                if arabic and arabic != primary:
+                    facet_text = f"{facet_row['facet_type']}: {arabic}"
+                else:
+                    facet_text = f"{facet_row['facet_type']}: {primary}"
+                facets_by_url.setdefault(url, []).append(facet_text)
+        
         for row in rows:
             item = dict(row)
-            item["matched_facets"] = _facet_text(conn, item["source_url"], backend)
+            item["matched_facets"] = ", ".join(facets_by_url.get(item["source_url"], []))
             businesses.append(item)
         return businesses
     finally:
