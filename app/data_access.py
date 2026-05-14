@@ -557,6 +557,76 @@ def _facet_text(conn: Any, source_url: str, backend: Backend = "sqlite") -> str:
     return ", ".join(parts)
 
 
+def load_database_stats(db_path: str | Path) -> dict[str, Any]:
+    """Load database statistics for dashboard display."""
+    conn, _backend = _open(db_path)
+    try:
+        total = _scalar(
+            conn.execute("SELECT COUNT(*) AS value FROM businesses").fetchone(),
+            "value",
+        )
+        with_arabic = _scalar(
+            conn.execute(
+                "SELECT COUNT(*) AS value FROM businesses "
+                "WHERE business_name_ar IS NOT NULL AND business_name_ar != ''"
+            ).fetchone(),
+            "value",
+        )
+        with_email = _scalar(
+            conn.execute(
+                "SELECT COUNT(*) AS value FROM businesses "
+                "WHERE email IS NOT NULL AND email != ''"
+            ).fetchone(),
+            "value",
+        )
+        with_phone = _scalar(
+            conn.execute(
+                "SELECT COUNT(*) AS value FROM businesses "
+                "WHERE phone IS NOT NULL AND phone != ''"
+            ).fetchone(),
+            "value",
+        )
+        unique_categories = _scalar(
+            conn.execute(
+                "SELECT COUNT(DISTINCT category_slug) AS value FROM businesses"
+            ).fetchone(),
+            "value",
+        )
+        unique_cities = _scalar(
+            conn.execute(
+                "SELECT COUNT(DISTINCT city_slug) AS value FROM businesses"
+            ).fetchone(),
+            "value",
+        )
+        return {
+            "total_businesses": total,
+            "arabic_businesses": with_arabic,
+            "businesses_with_email": with_email,
+            "businesses_with_phone": with_phone,
+            "unique_categories": unique_categories,
+            "unique_cities": unique_cities,
+        }
+    finally:
+        conn.close()
+
+
+def get_last_crawl_time(db_path: str | Path) -> str | None:
+    """Get the timestamp of the most recent crawl."""
+    conn, backend = _open(db_path)
+    try:
+        if backend == "postgres":
+            query = """SELECT MAX(NULLIF(scraped_at, '')::timestamptz) AS last_time 
+                      FROM businesses"""
+        else:
+            query = """SELECT MAX(scraped_at) AS last_time FROM businesses"""
+        
+        row = conn.execute(query).fetchone()
+        last_time = _scalar(row, "last_time", 0)
+        return str(last_time) if last_time else None
+    finally:
+        conn.close()
+
+
 def load_businesses(
     db_path: str | Path,
     filters: dict[str, list[str]] | None = None,

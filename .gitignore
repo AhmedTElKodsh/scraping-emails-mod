@@ -11,6 +11,9 @@ output/
 .pytest_cache/
 .pytest-tmp*/
 
+# Streamlit secrets (never commit credentials)
+.streamlit/secrets.toml
+
 # Runtime data and local tool state
 data/*.sqlite*
 data/*.log

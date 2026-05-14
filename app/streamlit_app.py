@@ -24,9 +24,11 @@ import streamlit as st
 from app.crawl_plan import build_crawl_plan
 from app.data_access import (
     ensure_seed_taxonomy,
+    get_last_crawl_time,
     load_businesses,
     load_crawl_progress,
     load_crawl_target_options,
+    load_database_stats,
     load_facet_options,
     load_job_summary,
     load_matching_jobs,
@@ -48,8 +50,13 @@ def _apply_streamlit_secret_env() -> None:
 
 _apply_streamlit_secret_env()
 cfg = Settings()
-DB_PATH = getattr(cfg, "database_url", "") or getattr(cfg, "db_path", "data/scraper.sqlite")
+# Prioritize DATABASE_URL (Supabase) over local SQLite
+DB_PATH = cfg.database_url or getattr(cfg, "db_path", "data/scraper.sqlite")
 AUTO_REFRESH_SECONDS = 15
+
+# Determine database type for display
+from scraper.storage import is_postgres_url
+IS_USING_SUPABASE = is_postgres_url(DB_PATH)
 SEED_WAS_LOADED = ensure_seed_taxonomy(
     DB_PATH,
     getattr(cfg, "taxonomy_seed_path", "data/taxonomy_seed.json"),
@@ -198,6 +205,11 @@ def _crawl_runtime_snapshot() -> dict[str, Any]:
 
 st.sidebar.title("Filters")
 
+# Show last update time in sidebar
+last_update = get_last_crawl_time(DB_PATH)
+if last_update:
+    st.sidebar.caption(f"🕒 Last updated: {last_update}")
+
 if SEED_WAS_LOADED:
     st.session_state["starter_taxonomy_loaded"] = True
 
@@ -321,6 +333,49 @@ crawl_plan = build_crawl_plan(
 )
 
 st.title("YellowPages Egypt - Business Contacts")
+
+# Show database connection status
+if IS_USING_SUPABASE:
+    st.success("🌐 Connected to Supabase (Cloud Database) - All data is synchronized online")
+else:
+    st.warning("💾 Using Local SQLite Database - Data is stored locally only")
+
+# Database Statistics Dashboard
+with st.expander("📊 Database Statistics", expanded=False):
+    stats = load_database_stats(DB_PATH)
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Businesses", f"{stats['total_businesses']:,}")
+    with col2:
+        st.metric("With Arabic Names", f"{stats['arabic_businesses']:,}")
+    with col3:
+        st.metric("With Emails", f"{stats['businesses_with_email']:,}")
+    with col4:
+        st.metric("With Phones", f"{stats['businesses_with_phone']:,}")
+    
+    col5, col6 = st.columns(2)
+    with col5:
+        st.metric("Unique Categories", f"{stats['unique_categories']:,}")
+    with col6:
+        st.metric("Unique Cities", f"{stats['unique_cities']:,}")
+    
+    # Data quality percentages
+    if stats['total_businesses'] > 0:
+        email_rate = (stats['businesses_with_email'] / stats['total_businesses']) * 100
+        phone_rate = (stats['businesses_with_phone'] / stats['total_businesses']) * 100
+        arabic_rate = (stats['arabic_businesses'] / stats['total_businesses']) * 100
+        
+        st.caption(
+            f"📈 Data Quality: "
+            f"{email_rate:.1f}% have emails | "
+            f"{phone_rate:.1f}% have phones | "
+            f"{arabic_rate:.1f}% have Arabic names"
+        )
+    
+    # Last update time
+    last_update = get_last_crawl_time(DB_PATH)
+    if last_update:
+        st.caption(f"🕒 Last updated: {last_update}")
 
 with st.expander("Crawl Status"):
     summary = load_job_summary(DB_PATH)
@@ -502,19 +557,40 @@ def _render_data_table() -> None:
         ]
         visible_columns = [column for column in columns if column in df.columns]
         total_count = len(df)
-        display_count = min(500, total_count)
-        st.write(f"**{total_count:,}** businesses found (displaying {display_count:,})")
-        if total_count > 500:
-            st.info(f"Showing first 500 rows. Use 'Download Filtered CSV' to get all {total_count:,} matching businesses.")
+        
+        # Calculate data quality metrics for filtered results
+        email_count = df["email"].notna().sum() if "email" in df.columns else 0
+        phone_count = df["phone"].notna().sum() if "phone" in df.columns else 0
+        arabic_count = df["business_name_ar"].notna().sum() if "business_name_ar" in df.columns else 0
+        
+        email_rate = (email_count / total_count * 100) if total_count > 0 else 0
+        phone_rate = (phone_count / total_count * 100) if total_count > 0 else 0
+        arabic_rate = (arabic_count / total_count * 100) if total_count > 0 else 0
+        
+        st.write(f"**{total_count:,}** businesses found")
+        st.caption(
+            f"📊 Filtered Data Quality: "
+            f"{email_rate:.1f}% have emails ({email_count:,}) | "
+            f"{phone_rate:.1f}% have phones ({phone_count:,}) | "
+            f"{arabic_rate:.1f}% have Arabic names ({arabic_count:,})"
+        )
+        
+        # Keep Arabic column names to make it clear we're showing Arabic data
         display_df = df[visible_columns].rename(columns={
-            "business_name_ar": "business_name",
-            "address_ar": "address",
-            "category_ar": "category",
+            "business_name_ar": "اسم الشركة (Business Name)",
+            "address_ar": "العنوان (Address)",
+            "category_ar": "الفئة (Category)",
+            "phone": "الهاتف (Phone)",
+            "email": "البريد الإلكتروني (Email)",
+            "source_url": "رابط المصدر (Source URL)",
+            "matched_facets": "التصنيفات (Categories)",
+            "scraped_at": "تاريخ الجمع (Scraped Date)",
         })
-        st.dataframe(display_df.head(500), width="stretch")
+        st.dataframe(display_df, width="stretch")
 
-        # Regular filtered CSV export
-        csv_data = display_df.drop_duplicates(subset=["source_url"]).to_csv(index=False).encode("utf-8-sig")
+        # Regular filtered CSV export (keep original column names for CSV)
+        csv_df = df[visible_columns].drop_duplicates(subset=["source_url"])
+        csv_data = csv_df.to_csv(index=False).encode("utf-8-sig")
         col1, col2 = st.columns(2)
         with col1:
             st.download_button(
@@ -529,27 +605,37 @@ def _render_data_table() -> None:
         # Export ALL data button (no filters)
         with col2:
             if st.button("Export All Data (Unfiltered)", key="export_all_button", help="Downloads ALL businesses from database (may take time for large datasets)"):
-                with st.spinner("Loading all data from database..."):
-                    all_businesses = load_businesses(DB_PATH, filters={}, search_query="", limit=10_000_000)
-                    if all_businesses:
-                        all_df = pd.DataFrame(all_businesses)
-                        all_visible_columns = [column for column in columns if column in all_df.columns]
-                        all_display_df = all_df[all_visible_columns].rename(columns={
-                            "business_name_ar": "business_name",
-                            "address_ar": "address",
-                            "category_ar": "category",
-                        })
-                        all_csv_data = all_display_df.drop_duplicates(subset=["source_url"]).to_csv(index=False).encode("utf-8-sig")
-                        st.download_button(
-                            f"Download All {len(all_display_df):,} Businesses",
-                            all_csv_data,
-                            f"yp_all_data_{datetime.now().strftime('%Y%m%d')}.csv",
-                            "text/csv; charset=utf-8-sig",
-                            key="download_all_csv_button",
-                        )
-                        st.success(f"Prepared {len(all_display_df):,} businesses for download")
-                    else:
-                        st.warning("No businesses found in database")
+                progress_bar = st.progress(0, text="Preparing export...")
+                try:
+                    with st.spinner("Loading all data from database..."):
+                        progress_bar.progress(25, text="Connecting to database...")
+                        all_businesses = load_businesses(DB_PATH, filters={}, search_query="", limit=10_000_000)
+                        
+                        if all_businesses:
+                            progress_bar.progress(50, text=f"Processing {len(all_businesses):,} businesses...")
+                            all_df = pd.DataFrame(all_businesses)
+                            all_visible_columns = [column for column in columns if column in all_df.columns]
+                            all_csv_df = all_df[all_visible_columns].drop_duplicates(subset=["source_url"])
+                            
+                            progress_bar.progress(75, text="Generating CSV file...")
+                            all_csv_data = all_csv_df.to_csv(index=False).encode("utf-8-sig")
+                            
+                            progress_bar.progress(100, text="Ready for download!")
+                            st.download_button(
+                                f"Download All {len(all_csv_df):,} Businesses",
+                                all_csv_data,
+                                f"yp_all_data_{datetime.now().strftime('%Y%m%d')}.csv",
+                                "text/csv; charset=utf-8-sig",
+                                key="download_all_csv_button",
+                            )
+                            st.success(f"✅ Prepared {len(all_csv_df):,} businesses for download")
+                        else:
+                            progress_bar.empty()
+                            st.warning("No businesses found in database")
+                except Exception as e:
+                    progress_bar.empty()
+                    st.error(f"Error exporting data: {str(e)}")
+
 
 if active_crawl:
     @st.fragment(run_every=f"{AUTO_REFRESH_SECONDS}s")
