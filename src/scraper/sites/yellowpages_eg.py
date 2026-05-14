@@ -111,7 +111,7 @@ def _normalize_href(href: str) -> str:
 
 
 def _canonical_profile_url(url: str) -> str:
-    return url.replace("/ar/profile/", "/en/profile/", 1)
+    return url.replace("/en/profile/", "/ar/profile/", 1)
 
 
 def parse_listing_urls(html: str) -> list[str]:
@@ -210,16 +210,26 @@ def parse_detail(html: str, url: str) -> ScrapeResult:
         if "facebook.com" in fb_href:
             facebook_url = fb_href
 
+    name = _first_text(tree, _NAME_SELECTORS)
+    category = _first_text(tree, _CATEGORY_SELECTORS)
+    governorate = _first_text(tree, _GOVERNORATE_SELECTORS)
+    address = _first_text(tree, _ADDRESS_SELECTORS)
+
+    is_ar = "/ar/" in url
     return ScrapeResult(
         url=url,
-        business_name=_first_text(tree, _NAME_SELECTORS),
-        category=_first_text(tree, _CATEGORY_SELECTORS),
-        governorate=_first_text(tree, _GOVERNORATE_SELECTORS),
+        business_name=name,
+        business_name_ar=name if is_ar else "",
+        category=category,
+        category_ar=category if is_ar else "",
+        governorate=governorate,
+        governorate_ar=governorate if is_ar else "",
         phone=phone,
         emails=emails,
         website=website,
         facebook_url=facebook_url,
-        address=_first_text(tree, _ADDRESS_SELECTORS),
+        address=address,
+        address_ar=address if is_ar else "",
         raw_html_hash=hashlib.md5(html.encode()).hexdigest(),
         scraped_at=datetime.now(UTC).isoformat(),
     )

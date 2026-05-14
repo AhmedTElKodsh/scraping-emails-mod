@@ -19,7 +19,7 @@ def test_yp_scraper_full_flow_with_mock_responses(
     # Mock HTML responses
     list_page_html = """
     <html>
-        <a href="/en/profile/test-biz/710101?position=1">Test Business</a>
+        <a href="/ar/profile/test-biz/710101?position=1">Test Business</a>
     </html>
     """
 
@@ -43,7 +43,7 @@ def test_yp_scraper_full_flow_with_mock_responses(
             call_count[0] += 1
             if "/en/getPhones/" in url:
                 return Response(200, phones_json, {}, 1)
-            elif "/en/profile/" in url:
+            elif "/ar/profile/" in url:
                 return Response(200, detail_page_html, {}, 1)
             else:
                 return Response(200, list_page_html, {}, 1)

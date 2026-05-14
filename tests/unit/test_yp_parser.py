@@ -9,7 +9,7 @@ def test_parse_listing_urls_extracts_profile_links() -> None:
     html = (FIXTURES / "yp_list_page.html").read_text(encoding="utf-8")
     urls = parse_listing_urls(html)
     assert len(urls) == 2
-    assert all("/en/profile/" in u for u in urls)
+    assert all("/ar/profile/" in u for u in urls)
     assert all(u.startswith("https://") for u in urls)
 
 
@@ -67,7 +67,7 @@ def test_parse_listing_cards_extracts_profile_url_and_visible_facets() -> None:
 
     cards = parse_listing_cards(html)
     assert len(cards) == 1
-    assert cards[0].url == "https://yellowpages.com.eg/en/profile/cool-air/123"
+    assert cards[0].url == "https://yellowpages.com.eg/ar/profile/cool-air/123"
     assert {(facet.type, facet.slug, facet.name) for facet in cards[0].facets} == {
         ("category", "air-conditioning", "Air Conditioning"),
         ("keyword", "central-ac-duct-works", "Central AC Duct Works"),
@@ -88,7 +88,7 @@ def test_parse_listing_cards_normalizes_arabic_profile_and_facets() -> None:
 
     cards = parse_listing_cards(html)
 
-    assert cards[0].url == "https://yellowpages.com.eg/en/profile/cool-air/123"
+    assert cards[0].url == "https://yellowpages.com.eg/ar/profile/cool-air/123"
     assert {(facet.type, facet.slug, facet.name_ar) for facet in cards[0].facets} == {
         ("category", "import-&-export", "استيراد وتصدير"),
         ("keyword", "Export", "تصدير"),
