@@ -446,7 +446,7 @@ if st.sidebar.button("Refresh Log", key="refresh_log_button"):
     if log_path.exists():
         st.code(log_path.read_text(encoding="utf-8")[-2000:], language="text")
 
-businesses = load_businesses(DB_PATH, filters, search_query=search_query)
+businesses = load_businesses(DB_PATH, filters, search_query=search_query, limit=1_000_000)
 
 if not businesses:
     matching_jobs = load_matching_jobs(
@@ -500,7 +500,7 @@ else:
         "business_name_ar": "business_name",
         "address_ar": "address",
     })
-    st.dataframe(display_df, width="stretch")
+    st.dataframe(display_df.head(500), width="stretch")
 
     csv_data = display_df.drop_duplicates(subset=["source_url"]).to_csv(index=False).encode("utf-8-sig")
     st.download_button(
