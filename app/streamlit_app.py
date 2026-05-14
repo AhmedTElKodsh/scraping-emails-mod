@@ -446,67 +446,77 @@ if st.sidebar.button("Refresh Log", key="refresh_log_button"):
     if log_path.exists():
         st.code(log_path.read_text(encoding="utf-8")[-2000:], language="text")
 
-businesses = load_businesses(DB_PATH, filters, search_query=search_query, limit=1_000_000)
+def _render_data_table() -> None:
+    businesses = load_businesses(DB_PATH, filters, search_query=search_query, limit=1_000_000)
 
-if not businesses:
-    matching_jobs = load_matching_jobs(
-        DB_PATH,
-        target_slugs_by_type,
-        filters["city"],
-    )
-    if target_slugs_by_type and not matching_jobs:
-        st.info(
-            "No saved businesses for the selected taxonomy yet. "
-            "Use Run Scoped Crawl to fetch them."
+    if not businesses:
+        matching_jobs = load_matching_jobs(
+            DB_PATH,
+            target_slugs_by_type,
+            filters["city"],
         )
-    elif matching_jobs and any(job["status"] == "running" for job in matching_jobs):
-        st.info("The selected crawl is running. Refresh shortly to see newly saved businesses.")
-    elif matching_jobs and all(job["status"] == "pending" for job in matching_jobs):
-        st.info("The selected crawl is queued. Use Run Scoped Crawl to prioritize it.")
-    elif matching_jobs and any(job["status"] == "failed" for job in matching_jobs):
-        st.info("The selected crawl has failed jobs. Check the crawl log before retrying.")
-    elif (
-        matching_jobs
-        and all(job["status"] == "done" for job in matching_jobs)
-        and all((job["rows_written"] or 0) == 0 for job in matching_jobs)
-    ):
-        saved_matches = sum(job.get("matching_saved_businesses", 0) for job in matching_jobs)
-        if saved_matches:
+        if target_slugs_by_type and not matching_jobs:
             st.info(
-                f"The selected crawl is complete. {saved_matches:,} saved businesses "
-                "already match this selection."
+                "No saved businesses for the selected taxonomy yet. "
+                "Use Run Scoped Crawl to fetch them."
             )
+        elif matching_jobs and any(job["status"] == "running" for job in matching_jobs):
+            st.info("The selected crawl is running. Refresh shortly to see newly saved businesses.")
+        elif matching_jobs and all(job["status"] == "pending" for job in matching_jobs):
+            st.info("The selected crawl is queued. Use Run Scoped Crawl to prioritize it.")
+        elif matching_jobs and any(job["status"] == "failed" for job in matching_jobs):
+            st.info("The selected crawl has failed jobs. Check the crawl log before retrying.")
+        elif (
+            matching_jobs
+            and all(job["status"] == "done" for job in matching_jobs)
+            and all((job["rows_written"] or 0) == 0 for job in matching_jobs)
+        ):
+            saved_matches = sum(job.get("matching_saved_businesses", 0) for job in matching_jobs)
+            if saved_matches:
+                st.info(
+                    f"The selected crawl is complete. {saved_matches:,} saved businesses "
+                    "already match this selection."
+                )
+            else:
+                st.info("The selected crawl job completed, but wrote 0 businesses.")
+        elif matching_jobs:
+            st.info("Saved businesses exist for this crawl, but none match all selected filters.")
         else:
-            st.info("The selected crawl job completed, but wrote 0 businesses.")
-    elif matching_jobs:
-        st.info("Saved businesses exist for this crawl, but none match all selected filters.")
+            st.info("No saved businesses match the selected filters.")
     else:
-        st.info("No saved businesses match the selected filters.")
-else:
-    df = pd.DataFrame(businesses)
-    columns = [
-        "business_name_ar",
-        "phone",
-        "email",
-        "address_ar",
-        "category_slug",
-        "source_url",
-        "matched_facets",
-        "scraped_at",
-    ]
-    visible_columns = [column for column in columns if column in df.columns]
-    st.write(f"**{len(df)}** businesses found (showing up to 500)")
-    display_df = df[visible_columns].rename(columns={
-        "business_name_ar": "business_name",
-        "address_ar": "address",
-    })
-    st.dataframe(display_df.head(500), width="stretch")
+        df = pd.DataFrame(businesses)
+        columns = [
+            "business_name_ar",
+            "phone",
+            "email",
+            "address_ar",
+            "category_slug",
+            "source_url",
+            "matched_facets",
+            "scraped_at",
+        ]
+        visible_columns = [column for column in columns if column in df.columns]
+        st.write(f"**{len(df)}** businesses found (showing up to 500)")
+        display_df = df[visible_columns].rename(columns={
+            "business_name_ar": "business_name",
+            "address_ar": "address",
+        })
+        st.dataframe(display_df.head(500), width="stretch")
 
-    csv_data = display_df.drop_duplicates(subset=["source_url"]).to_csv(index=False).encode("utf-8-sig")
-    st.download_button(
-        "Download CSV",
-        csv_data,
-        f"yp_export_{datetime.now().strftime('%Y%m%d')}.csv",
-        "text/csv; charset=utf-8-sig",
-        key="download_csv_button",
-    )
+        csv_data = display_df.drop_duplicates(subset=["source_url"]).to_csv(index=False).encode("utf-8-sig")
+        st.download_button(
+            "Download CSV",
+            csv_data,
+            f"yp_export_{datetime.now().strftime('%Y%m%d')}.csv",
+            "text/csv; charset=utf-8-sig",
+            key="download_csv_button",
+        )
+
+if active_crawl:
+    @st.fragment(run_every=f"{AUTO_REFRESH_SECONDS}s")
+    def _render_data_table_fragment() -> None:
+        _render_data_table()
+
+    _render_data_table_fragment()
+else:
+    _render_data_table()
