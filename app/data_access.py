@@ -22,7 +22,9 @@ RELATED_CATEGORY_TARGETS = {
     "factory-equipment-and-supplies",
     "distribution",
     "استيراد وتصدير",
+    "استيراد-وتصدير",
     "مصنع",
+    "تصدير",
     "توزيع",
 }
 RELATED_KEYWORD_TARGETS = {
@@ -30,11 +32,85 @@ RELATED_KEYWORD_TARGETS = {
     "export",
     "factory",
     "distribution",
+    "import-&-export",
     "استيراد",
     "تصدير",
     "مصنع",
     "توزيع",
+    "استيراد وتصدير",
+    "استيراد-وتصدير",
 }
+
+CATEGORY_TARGET_GROUPS = {
+    "import-&-export": {
+        "slug": "import-&-export",
+        "name": "Import & Export",
+        "name_ar": "استيراد وتصدير",
+        "aliases": {
+            "import-&-export",
+            "import-export",
+            "import export",
+            "استيراد وتصدير",
+            "استيراد-وتصدير",
+        },
+    },
+    "factory-equipment-and-supplies": {
+        "slug": "factory-equipment-and-supplies",
+        "name": "Factory Equipment & Supplies",
+        "name_ar": "مستلزمات مصانع",
+        "aliases": {
+            "factory-equipment-and-supplies",
+        },
+    },
+}
+
+ROLE_KEYWORD_EXPANSIONS = {
+    "مصنع": ["factory", "factories", "factory-equipment-and-supplies"],
+    "استيراد": ["import"],
+    "تصدير": ["export"],
+    "استيراد وتصدير": ["import-&-export", "import-export", "import export", "استيراد-وتصدير"],
+    "استيراد-وتصدير": ["import-&-export", "import-export", "import export", "استيراد وتصدير"],
+    "توزيع": ["distribution"],
+}
+
+
+def _canonical_category_targets(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    canonical: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        values = {
+            str(row.get("slug") or ""),
+            str(row.get("name") or ""),
+            str(row.get("name_ar") or ""),
+            str(row.get("href") or ""),
+        }
+        for group in CATEGORY_TARGET_GROUPS.values():
+            if not any(alias in value for alias in group["aliases"] for value in values):
+                continue
+            item = canonical.setdefault(
+                group["slug"],
+                {
+                    "slug": group["slug"],
+                    "name": group["name"],
+                    "name_ar": group["name_ar"],
+                    "count": 0,
+                },
+            )
+            item["count"] = max(
+                int(item.get("count") or 0),
+                int(row.get("count") or row.get("result_count") or 0),
+            )
+            break
+    for group in CATEGORY_TARGET_GROUPS.values():
+        canonical.setdefault(
+            group["slug"],
+            {
+                "slug": group["slug"],
+                "name": group["name"],
+                "name_ar": group["name_ar"],
+                "count": 0,
+            },
+        )
+    return [canonical[group["slug"]] for group in CATEGORY_TARGET_GROUPS.values()]
 
 
 def _open(db_path: str | Path) -> tuple[Any, Backend]:
@@ -231,10 +307,10 @@ def search_facet_suggestions(
 
 def load_crawl_target_options(db_path: str | Path) -> dict[str, list[dict[str, Any]]]:
     keywords_raw = load_taxonomy_options(db_path, "keywords")
+    categories_raw = load_taxonomy_options(db_path, "categories")
     return {
-        "categories": _limited_targets(
-            load_taxonomy_options(db_path, "categories"),
-            RELATED_CATEGORY_TARGETS,
+        "categories": _canonical_category_targets(
+            _limited_targets(categories_raw, RELATED_CATEGORY_TARGETS),
         ),
         "brands": [],
         "keywords": _limited_targets(
@@ -641,8 +717,10 @@ def load_businesses(
         # Use COALESCE to fallback to English fields if Arabic fields are empty
         query = """SELECT 
             b.source_url,
+            b.business_name,
             COALESCE(NULLIF(b.business_name_ar, ''), b.business_name) AS business_name_ar,
             COALESCE(NULLIF(b.category_ar, ''), b.category_slug) AS category_ar,
+            COALESCE(NULLIF(b.city_slug, ''), '') AS governorate,
             COALESCE(NULLIF(b.governorate_ar, ''), b.city_slug) AS governorate_ar,
             COALESCE(NULLIF(b.address_ar, ''), b.address) AS address_ar,
             b.phone,
@@ -657,23 +735,15 @@ def load_businesses(
         FROM businesses b WHERE 1=1"""
         params: list[Any] = []
         for facet_type, slugs in filters.items():
+            slugs = list(slugs)
             placeholders = ",".join(ph for _ in slugs)
             facet_types = [facet_type]
             if facet_type == "keyword" and any(slug in ARABIC_ROLE_TERMS for slug in slugs):
                 facet_types.append("category")
-                english_slugs = []
+                expanded_slugs: list[str] = []
                 for slug in slugs:
-                    if slug == "مصنع":
-                        english_slugs.extend(["factory", "factories"])
-                    elif slug == "استيراد":
-                        english_slugs.extend(["import"])
-                    elif slug == "تصدير":
-                        english_slugs.extend(["export"])
-                    elif slug == "استيراد وتصدير":
-                        english_slugs.extend(["import-&-export", "import-export", "import export"])
-                    elif slug == "توزيع":
-                        english_slugs.extend(["distribution"])
-                slugs.extend(english_slugs)
+                    expanded_slugs.extend(ROLE_KEYWORD_EXPANSIONS.get(slug, []))
+                slugs.extend(expanded_slugs)
                 placeholders = ",".join(ph for _ in slugs)
             type_placeholders = ",".join(ph for _ in facet_types)
             query += (
@@ -722,6 +792,9 @@ def load_businesses(
         businesses: list[dict[str, Any]] = []
         source_urls = [dict(row)["source_url"] for row in rows]
         
+        facets_by_url: dict[str, list[str]] = {}
+        facet_slugs_by_url: dict[str, dict[str, list[str]]] = {}
+        facet_names_by_url: dict[str, dict[str, list[str]]] = {}
         if source_urls:
             # Load all facets in one query
             facets_ph = ",".join(placeholder(backend) for _ in source_urls)
@@ -734,20 +807,34 @@ def load_businesses(
             ).fetchall()
             
             # Group facets by source_url
-            facets_by_url: dict[str, list[str]] = {}
             for facet_row in facet_rows:
                 url = facet_row["source_url"]
                 primary = facet_row["name"] or facet_row["slug"]
                 arabic = facet_row["name_ar"] or ""
+                facet_type = facet_row["facet_type"]
+                slug = facet_row["slug"]
                 if arabic and arabic != primary:
-                    facet_text = f"{facet_row['facet_type']}: {arabic}"
+                    facet_text = f"{facet_type}: {arabic}"
                 else:
-                    facet_text = f"{facet_row['facet_type']}: {primary}"
+                    facet_text = f"{facet_type}: {primary}"
                 facets_by_url.setdefault(url, []).append(facet_text)
+                facet_slugs_by_url.setdefault(url, {}).setdefault(facet_type, []).append(slug)
+                facet_names_by_url.setdefault(url, {}).setdefault(facet_type, []).append(str(primary))
         
         for row in rows:
             item = dict(row)
             item["matched_facets"] = ", ".join(facets_by_url.get(item["source_url"], []))
+            grouped_slugs = facet_slugs_by_url.get(item["source_url"], {})
+            grouped_names = facet_names_by_url.get(item["source_url"], {})
+            item["facet_categories"] = " | ".join(grouped_slugs.get("category", []))
+            item["facet_keywords"] = " | ".join(grouped_slugs.get("keyword", []))
+            item["facet_brands"] = " | ".join(grouped_slugs.get("brand", []))
+            item["facet_cities"] = " | ".join(grouped_slugs.get("city", []))
+            item["facet_names"] = " | ".join(
+                name
+                for facet_type in ("category", "keyword", "brand", "city", "area", "district")
+                for name in grouped_names.get(facet_type, [])
+            )
             businesses.append(item)
         return businesses
     finally:

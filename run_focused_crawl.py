@@ -42,11 +42,12 @@ def export_to_csv(db_path: str, output_file: str):
     
     try:
         # Query to get all businesses with Arabic names prioritized
+        # Fixed: Use city_slug (from facets) instead of governorate_ar (from scraped page)
         query = """
         SELECT 
             COALESCE(NULLIF(b.business_name_ar, ''), b.business_name) AS business_name,
             COALESCE(NULLIF(b.category_ar, ''), b.category_slug) AS category,
-            COALESCE(NULLIF(b.governorate_ar, ''), b.city_slug) AS city,
+            b.city_slug AS city,
             COALESCE(NULLIF(b.address_ar, ''), b.address) AS address,
             b.phone,
             b.email,

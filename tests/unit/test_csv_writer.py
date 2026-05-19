@@ -130,3 +130,39 @@ def test_seen_count_reflects_total(tmp_path: Path) -> None:
     writer = CSVWriter(path)
     writer.write(make_result(emails=["a@a.com", "b@b.com"]))
     assert writer.seen_count == 2
+
+
+def test_exports_facets_and_target_audit_columns(tmp_path: Path) -> None:
+    from scraper.csv_writer import CSVWriter
+    from scraper.models import Facet
+
+    path = tmp_path / "out.csv"
+    writer = CSVWriter(path)
+    writer.write(
+        make_result(
+            emails=[],
+            business_name_ar="مصنع القاهرة",
+            category_ar="مصانع",
+            governorate_ar="القاهرة",
+            address_ar="شارع النصر",
+            facets=[
+                Facet(type="keyword", slug="مصنع", name="factory", name_ar="مصنع"),
+                Facet(type="category", slug="factory-equipment-and-supplies"),
+                Facet(type="city", slug="cairo", name="cairo"),
+            ],
+        )
+    )
+
+    rows = list(csv.DictReader(path.read_text(encoding="utf-8-sig").splitlines()))
+    assert rows[0]["business_name_ar"] == "مصنع القاهرة"
+    assert rows[0]["category_ar"] == "مصانع"
+    assert rows[0]["governorate_ar"] == "القاهرة"
+    assert rows[0]["address_ar"] == "شارع النصر"
+    assert rows[0]["target_type"] == "keyword"
+    assert rows[0]["target_slug"] == "مصنع"
+    assert rows[0]["target_name"] == "factory"
+    assert rows[0]["target_name_ar"] == "مصنع"
+    assert rows[0]["city_slug"] == "cairo"
+    assert rows[0]["facet_categories"] == "factory-equipment-and-supplies"
+    assert rows[0]["facet_keywords"] == "مصنع"
+    assert rows[0]["facet_cities"] == "cairo"

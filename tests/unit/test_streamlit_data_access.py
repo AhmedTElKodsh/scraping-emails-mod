@@ -121,13 +121,45 @@ def test_load_businesses_arabic_role_keyword_matches_category_facet(tmp_path: Pa
     options = load_crawl_target_options(db_path)
     rows = load_businesses(db_path, {"keyword": ["مصنع"]})
 
-    assert {"slug": "مصنع", "name": "مصنع"} in [
+    assert {"slug": "factory-equipment-and-supplies", "name": "Factory Equipment & Supplies"} in [
         {"slug": row["slug"], "name": row["name"]} for row in options["categories"]
     ]
     assert {"slug": "مصنع", "name": "مصنع"} in [
         {"slug": row["slug"], "name": row["name"]} for row in options["keywords"]
     ]
     assert [row["business_name"] for row in rows] == ["Factory One"]
+    assert rows[0]["facet_categories"] == "مصنع"
+
+
+def test_load_businesses_returns_facet_audit_columns(tmp_path: Path) -> None:
+    from app.data_access import load_businesses
+    from scraper.db import get_connection, init_db
+
+    db_path = tmp_path / "test.sqlite"
+    conn = get_connection(db_path)
+    init_db(conn)
+    conn.executescript(
+        """
+        INSERT INTO businesses
+            (source_url, business_name, business_name_ar, category_ar, city_slug, address_ar)
+        VALUES
+            ('https://example.com/1', 'Importer One', 'المستورد الاول', 'استيراد', 'cairo', 'القاهرة');
+
+        INSERT INTO business_facets (source_url, facet_type, slug, name, name_ar)
+        VALUES
+            ('https://example.com/1', 'keyword', 'استيراد', 'import', 'استيراد'),
+            ('https://example.com/1', 'category', 'import-&-export', 'Import & Export', 'استيراد وتصدير'),
+            ('https://example.com/1', 'city', 'cairo', 'Cairo', 'القاهرة');
+        """
+    )
+    conn.close()
+
+    rows = load_businesses(db_path, {"keyword": ["استيراد"]})
+
+    assert rows[0]["facet_keywords"] == "استيراد"
+    assert rows[0]["facet_categories"] == "import-&-export"
+    assert rows[0]["facet_cities"] == "cairo"
+    assert "keyword: استيراد" in rows[0]["matched_facets"]
 
 
 def test_search_facets_preserves_same_slug_across_category_and_keyword(
@@ -344,7 +376,7 @@ def test_load_filter_options_returns_saved_business_facets(tmp_path: Path) -> No
     init_db(conn)
     conn.executescript(
         """
-        INSERT INTO categories (slug, name, result_count)
+        INSERT OR REPLACE INTO categories (slug, name, result_count)
         VALUES
             ('restaurants', 'Restaurants', 100),
             ('atms', 'ATMs', 11);
@@ -394,10 +426,13 @@ def test_load_crawl_target_options_returns_scraped_taxonomy_items(tmp_path: Path
     init_db(conn)
     conn.executescript(
         """
-        INSERT INTO categories (slug, name, result_count)
+        INSERT OR REPLACE INTO categories (slug, name, result_count)
         VALUES
             ('restaurants', 'Restaurants', 100),
-            ('atms', 'ATMs', 11);
+            ('atms', 'ATMs', 11),
+            ('import-&-export', 'Import & Export', 12),
+            ('استيراد وتصدير', 'استيراد وتصدير', 9),
+            ('factory-equipment-and-supplies', 'Factory Equipment & Supplies', 7);
 
         INSERT INTO brands (slug, name, result_count)
         VALUES
@@ -418,10 +453,20 @@ def test_load_crawl_target_options_returns_scraped_taxonomy_items(tmp_path: Path
 
     options = load_crawl_target_options(db_path)
 
-    assert {row["slug"] for row in options["categories"]} >= {
-        "استيراد وتصدير",
-        "مصنع",
-    }
+    assert options["categories"] == [
+        {
+            "slug": "import-&-export",
+            "name": "Import & Export",
+            "name_ar": "استيراد وتصدير",
+            "count": 12,
+        },
+        {
+            "slug": "factory-equipment-and-supplies",
+            "name": "Factory Equipment & Supplies",
+            "name_ar": "مستلزمات مصانع",
+            "count": 7,
+        },
+    ]
     assert {"atms", "restaurants"}.isdisjoint({row["slug"] for row in options["categories"]})
     assert options["brands"] == []
     assert {row["slug"] for row in options["keywords"]} >= {
@@ -585,16 +630,21 @@ def test_streamlit_full_crawl_uses_http_tiers_only(monkeypatch, tmp_path: Path) 
     button.click().run(timeout=60)
 
     assert captured["headless"] is False
-    assert captured["target_types"] == ["keyword"]
+    assert captured["resume"] is True
+    assert captured["target_types"] == ["category", "keyword"]
     # Default plan expands all priority Arabic keywords to include their English equivalents
     expected_keywords = {
-        "\u0645\u0635\u0646\u0639", "factory",
+        "\u0645\u0635\u0646\u0639", "factory", "factories", "factory-equipment-and-supplies",
         "\u0627\u0633\u062a\u064a\u0631\u0627\u062f", "import",
         "\u062a\u0635\u062f\u064a\u0631", "export",
-        "\u0627\u0633\u062a\u064a\u0631\u0627\u062f \u0648\u062a\u0635\u062f\u064a\u0631", "import-&-export",
+        "\u0627\u0633\u062a\u064a\u0631\u0627\u062f \u0648\u062a\u0635\u062f\u064a\u0631", "import-&-export", "import-export", "import export", "\u0627\u0633\u062a\u064a\u0631\u0627\u062f-\u0648\u062a\u0635\u062f\u064a\u0631",
         "\u062a\u0648\u0632\u064a\u0639", "distribution",
     }
     assert set(captured["target_slugs_by_type"]["keyword"]) == expected_keywords  # type: ignore[index]
+    assert set(captured["target_slugs_by_type"]["category"]) == {  # type: ignore[index]
+        "import-&-export",
+        "factory-equipment-and-supplies",
+    }
     assert captured["city_slugs"] is None
     os.environ.pop("DB_PATH", None)
     os.environ.pop("DATABASE_URL", None)

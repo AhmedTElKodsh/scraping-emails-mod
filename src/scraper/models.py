@@ -35,3 +35,8 @@ class ScrapeResult(BaseModel):
     scraped_at: str = ""
     raw_html_hash: str = ""
     facets: list[Facet] = Field(default_factory=list)
+    target_type: str = ""
+    target_slug: str = ""
+    target_name: str = ""
+    target_name_ar: str = ""
+    city_slug: str = ""

@@ -20,18 +20,39 @@ class ResultWriter(Protocol):
 
 FIELDNAMES = [
     "business_name",
+    "business_name_ar",
     "category",
+    "category_ar",
     "governorate",
+    "governorate_ar",
     "phone",
     "email",
     "website",
     "facebook_url",
     "address",
+    "address_ar",
+    "target_type",
+    "target_slug",
+    "target_name",
+    "target_name_ar",
+    "city_slug",
+    "facet_categories",
+    "facet_keywords",
+    "facet_brands",
+    "facet_cities",
+    "facet_names",
+    "facet_names_ar",
     "source_url",
     "source_tier",
     "raw_html_hash",
     "scraped_at",
 ]
+
+AR_FACTORY = "\u0645\u0635\u0646\u0639"
+AR_IMPORT = "\u0627\u0633\u062a\u064a\u0631\u0627\u062f"
+AR_EXPORT = "\u062a\u0635\u062f\u064a\u0631"
+AR_IMPORT_EXPORT = "\u0627\u0633\u062a\u064a\u0631\u0627\u062f \u0648\u062a\u0635\u062f\u064a\u0631"
+AR_DISTRIBUTION = "\u062a\u0648\u0632\u064a\u0639"
 
 
 class CSVWriter:
@@ -82,16 +103,22 @@ class CSVWriter:
                 canonical = email.lower().strip()
                 if canonical:
                     self._seen_emails.add(canonical)
+                facet_row = _facet_row(result)
                 writer.writerow(
                     {
                         "business_name": result.business_name,
+                        "business_name_ar": result.business_name_ar,
                         "category": result.category,
+                        "category_ar": result.category_ar,
                         "governorate": result.governorate,
+                        "governorate_ar": result.governorate_ar,
                         "phone": result.phone,
                         "email": canonical,
                         "website": result.website,
                         "facebook_url": result.facebook_url,
                         "address": result.address,
+                        "address_ar": result.address_ar,
+                        **facet_row,
                         "source_url": result.url,
                         "source_tier": result.source_tier,
                         "raw_html_hash": result.raw_html_hash,
@@ -110,3 +137,59 @@ class CSVWriter:
     @property
     def seen_count(self) -> int:
         return len(self._seen_emails)
+
+
+def _join_unique(values: list[str]) -> str:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        cleaned = value.strip()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        ordered.append(cleaned)
+    return " | ".join(ordered)
+
+
+def _facet_row(result: ScrapeResult) -> dict[str, str]:
+    facets = result.facets or []
+    target_from_facets = next(
+        (
+            facet
+            for facet in facets
+            if facet.type in {"category", "keyword"}
+            and (facet.name_ar or facet.slug) in {
+                "استيراد",
+                "تصدير",
+                "مصنع",
+                "توزيع",
+                "استيراد وتصدير",
+                "import",
+                "export",
+                "factory",
+                "distribution",
+                "import-&-export",
+                "factory-equipment-and-supplies",
+            }
+        ),
+        None,
+    )
+    city = result.city_slug or next((facet.slug for facet in facets if facet.type == "city"), "")
+    return {
+        "target_type": result.target_type or (target_from_facets.type if target_from_facets else ""),
+        "target_slug": result.target_slug or (target_from_facets.slug if target_from_facets else ""),
+        "target_name": result.target_name or (target_from_facets.name if target_from_facets else ""),
+        "target_name_ar": result.target_name_ar
+        or (target_from_facets.name_ar if target_from_facets else ""),
+        "city_slug": city,
+        "facet_categories": _join_unique(
+            [facet.slug for facet in facets if facet.type == "category"]
+        ),
+        "facet_keywords": _join_unique(
+            [facet.slug for facet in facets if facet.type == "keyword"]
+        ),
+        "facet_brands": _join_unique([facet.slug for facet in facets if facet.type == "brand"]),
+        "facet_cities": _join_unique([facet.slug for facet in facets if facet.type == "city"]),
+        "facet_names": _join_unique([facet.name for facet in facets]),
+        "facet_names_ar": _join_unique([facet.name_ar for facet in facets]),
+    }

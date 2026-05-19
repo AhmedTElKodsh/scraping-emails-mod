@@ -26,23 +26,13 @@ ARABIC_ROLE_SEARCH_TERMS = {
 }
 RELATED_CATEGORY_TARGETS = {
     "import-&-export",
-    "import-export",
-    "import export",
-    "factory",
-    "factories",
-    "استيراد وتصدير",
-    "مصنع",
-    "distribution",
-    "توزيع",
+    "factory-equipment-and-supplies",
 }
 RELATED_KEYWORD_TARGETS = {
-    "import",
-    "export",
-    "factory",
     "استيراد",
     "تصدير",
     "مصنع",
-    "distribution",
+    "استيراد وتصدير",
     "توزيع",
 }
 
@@ -114,18 +104,28 @@ def _mark_running(conn: Any, job_id: int, backend: Backend = "sqlite") -> None:
     conn.commit()
 
 
-def _claim_job(conn: Any, job_id: int, backend: Backend = "sqlite") -> bool:
+def _claim_job(
+    conn: Any,
+    job_id: int,
+    backend: Backend = "sqlite",
+    *,
+    reset_progress: bool = True,
+) -> bool:
     """Atomically claim a pending/failed job for this process."""
     ph = placeholder(backend)
     now_expr = "now()" if backend == "postgres" else "datetime('now', 'localtime')"
+    progress_reset = (
+        "pages_scraped=0,\n            rows_written=0"
+        if reset_progress
+        else "pages_scraped=pages_scraped,\n            rows_written=rows_written"
+    )
     cursor = conn.execute(
         f"""UPDATE scrape_jobs
         SET status='running',
             started_at={now_expr},
             finished_at=NULL,
             error='',
-            pages_scraped=0,
-            rows_written=0
+            {progress_reset}
         WHERE id={ph} AND status IN ('pending', 'failed')""",
         (job_id,),
     )
@@ -172,11 +172,16 @@ def _mark_done(
 
 
 def _should_skip_done_job(target_type: str, target_slug: str, job: dict[str, Any]) -> bool:
-    if job["status"] != "done":
-        return False
-    if target_type in {"category", "keyword"} and target_slug in ARABIC_ROLE_SEARCH_TERMS:
-        return (job.get("rows_written") or 0) > 0
-    return True
+    """Completed jobs are refreshed on explicit runs; storage upserts prevent duplicates."""
+    return False
+
+
+def _resume_start_page(job: dict[str, Any], max_pages: int) -> int:
+    """Resume after the last fully recorded page for interrupted jobs."""
+    pages_scraped = int(job.get("pages_scraped") or 0)
+    if pages_scraped <= 0:
+        return 1
+    return min(pages_scraped + 1, max_pages + 1)
 
 
 def _mark_failed(conn: Any, job_id: int, error: str, backend: Backend = "sqlite") -> None:
@@ -205,11 +210,8 @@ def _load_targets(
         table = _TARGET_TABLES[target_type]
         selected_slugs = target_slugs_by_type.get(target_type) or []
         if selected_slugs:
-            placeholders = ",".join(placeholder(backend) for _ in selected_slugs)
-            rows = conn.execute(
-                f"SELECT slug FROM {table} WHERE slug IN ({placeholders}) ORDER BY name",
-                selected_slugs,
-            ).fetchall()
+            targets.extend((target_type, slug) for slug in selected_slugs)
+            continue
         else:
             allowed_terms = (
                 RELATED_CATEGORY_TARGETS
@@ -263,6 +265,7 @@ def run_mass_crawl(
     target_slugs_by_type: dict[str, list[str]] | None = None,
     cities: str = "all",
     city_slugs: list[str] | None = None,
+    resume: bool = False,
 ) -> int:
     """Main mass crawl loop. Returns total rows written."""
     cfg = Settings()
@@ -339,10 +342,18 @@ def run_mass_crawl(
                 log.info("job_skip_done", target_type=target_type, target=target_slug, city=city)
                 continue
             if job["status"] == "done":
+                if resume:
+                    log.info(
+                        "job_resume_skip_done",
+                        target_type=target_type,
+                        target=target_slug,
+                        city=city,
+                    )
+                    continue
                 _mark_failed(
                     conn,
                     job["id"],
-                    "retrying zero-row Arabic role search job",
+                    "refreshing previously completed crawl job",
                     backend,
                 )
                 job["status"] = "failed"
@@ -354,7 +365,31 @@ def run_mass_crawl(
                     city=city,
                 )
                 continue
-            if not _claim_job(conn, job["id"], backend):
+            start_page = 1
+            existing_rows_written = 0
+            reset_progress = True
+            if resume and job["status"] == "failed":
+                start_page = _resume_start_page(job, max_pages)
+                existing_rows_written = int(job.get("rows_written") or 0)
+                reset_progress = False
+                if start_page > max_pages:
+                    _mark_done(
+                        conn,
+                        job["id"],
+                        int(job.get("pages_scraped") or max_pages),
+                        existing_rows_written,
+                        backend,
+                    )
+                    continue
+                log.info(
+                    "job_resume_failed",
+                    target_type=target_type,
+                    target=target_slug,
+                    city=city,
+                    start_page=start_page,
+                    existing_rows=existing_rows_written,
+                )
+            if not _claim_job(conn, job["id"], backend, reset_progress=reset_progress):
                 log.info(
                     "job_claim_missed",
                     target_type=target_type,
@@ -363,18 +398,18 @@ def run_mass_crawl(
                 )
                 continue
 
-            pages_scraped = 0
-            rows_written = 0
+            pages_scraped = int(job.get("pages_scraped") or 0) if not reset_progress else 0
+            rows_written = existing_rows_written
             try:
                 from scraper.sites.yellowpages_eg import scrape_target
 
                 def progress_callback(pages: int, rows: int) -> None:
                     nonlocal pages_scraped, rows_written
                     pages_scraped = pages
-                    rows_written = rows
+                    rows_written = existing_rows_written + rows
                     _mark_progress(conn, job["id"], pages_scraped, rows_written, backend)
 
-                rows_written = scrape_target(
+                new_rows_written = scrape_target(
                     target_type=target_type,
                     slug=target_slug,
                     city_slug=city or None,
@@ -385,9 +420,11 @@ def run_mass_crawl(
                     max_pages=max_pages,
                     consecutive_empty_halt=cfg.consecutive_empty_halt,
                     progress_callback=progress_callback,
+                    start_page=start_page,
                 )
+                rows_written = existing_rows_written + new_rows_written
                 _mark_done(conn, job["id"], pages_scraped, rows_written, backend)
-                total_rows += rows_written
+                total_rows += new_rows_written
             except Exception as e:
                 error = f"{type(e).__name__}: {e}"
                 _mark_failed(conn, job["id"], error, backend)

@@ -15,6 +15,8 @@ class SQLiteWriter:
     """Writes results to SQLite. Implements ResultWriter Protocol.
     Persistent dedup via INSERT OR IGNORE on source_url."""
 
+    refresh_existing = True
+
     def __init__(
         self,
         db_path: str | Path | None = None,
@@ -46,12 +48,31 @@ class SQLiteWriter:
             )
             city_slug = result.governorate or self._first_facet_value(result, "city", "slug")
             cursor = self._conn.execute(
-                """INSERT OR IGNORE INTO businesses
+                """INSERT INTO businesses
                 (source_url, business_name, business_name_ar,
                  category_slug, category_ar, city_slug, governorate_ar,
                  phone, email, website, facebook_url, address,
                  address_ar, raw_html_hash, source_tier, scraped_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(source_url) DO UPDATE SET
+                    business_name=COALESCE(NULLIF(excluded.business_name, ''), businesses.business_name),
+                    business_name_ar=COALESCE(NULLIF(excluded.business_name_ar, ''), businesses.business_name_ar),
+                    category_slug=COALESCE(NULLIF(excluded.category_slug, ''), businesses.category_slug),
+                    category_ar=COALESCE(NULLIF(excluded.category_ar, ''), businesses.category_ar),
+                    city_slug=COALESCE(NULLIF(excluded.city_slug, ''), businesses.city_slug),
+                    governorate_ar=COALESCE(NULLIF(excluded.governorate_ar, ''), businesses.governorate_ar),
+                    phone=COALESCE(NULLIF(excluded.phone, ''), businesses.phone),
+                    email=COALESCE(NULLIF(excluded.email, ''), businesses.email),
+                    website=COALESCE(NULLIF(excluded.website, ''), businesses.website),
+                    facebook_url=COALESCE(NULLIF(excluded.facebook_url, ''), businesses.facebook_url),
+                    address=COALESCE(NULLIF(excluded.address, ''), businesses.address),
+                    address_ar=COALESCE(NULLIF(excluded.address_ar, ''), businesses.address_ar),
+                    raw_html_hash=COALESCE(NULLIF(excluded.raw_html_hash, ''), businesses.raw_html_hash),
+                    source_tier=CASE
+                        WHEN excluded.source_tier != 0 THEN excluded.source_tier
+                        ELSE businesses.source_tier
+                    END,
+                    scraped_at=excluded.scraped_at""",
                 (
                     result.url,
                     result.business_name,
@@ -116,6 +137,7 @@ class SQLiteWriter:
                 """UPDATE businesses
                 SET business_name_ar=COALESCE(NULLIF(?, ''), business_name_ar),
                     category_ar=COALESCE(NULLIF(?, ''), category_ar),
+                    city_slug=COALESCE(NULLIF(?, ''), city_slug),
                     governorate_ar=COALESCE(NULLIF(?, ''), governorate_ar),
                     address_ar=COALESCE(NULLIF(?, ''), address_ar)
                 WHERE source_url=?""",
@@ -123,6 +145,7 @@ class SQLiteWriter:
                     arabic.business_name,
                     arabic.category,
                     arabic.governorate,
+                    arabic.governorate_ar or arabic.governorate,
                     arabic.address,
                     source_url,
                 ),

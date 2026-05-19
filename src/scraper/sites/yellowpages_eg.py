@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, unquote, urlencode
 
 import structlog
 from selectolax.parser import HTMLParser
@@ -23,26 +23,62 @@ log = structlog.get_logger()
 
 BASE_URL = "https://yellowpages.com.eg"
 TARGET_TYPES = {"category", "brand", "keyword"}
+AR_FACTORY = "\u0645\u0635\u0646\u0639"
+AR_IMPORT = "\u0627\u0633\u062a\u064a\u0631\u0627\u062f"
+AR_EXPORT = "\u062a\u0635\u062f\u064a\u0631"
+AR_IMPORT_EXPORT = "\u0627\u0633\u062a\u064a\u0631\u0627\u062f \u0648\u062a\u0635\u062f\u064a\u0631"
+AR_DISTRIBUTION = "\u062a\u0648\u0632\u064a\u0639"
+
 ARABIC_ROLE_SEARCH_TERMS = {
-    "مصنع",
-    "استيراد",
-    "تصدير",
-    "استيراد وتصدير",
-    "توزيع",
+    AR_FACTORY,
+    AR_IMPORT,
+    AR_EXPORT,
+    AR_IMPORT_EXPORT,
+    AR_DISTRIBUTION,
 }
 SEARCH_ALIASES = {
     "factory": "factory",
     "import": "import",
     "export": "export",
     "distribution": "distribution",
-    "مصنع": "factory",
-    "استيراد": "import",
-    "تصدير": "export",
-    "توزيع": "distribution",
+    AR_FACTORY: "factory",
+    AR_IMPORT: "import",
+    AR_EXPORT: "export",
+    AR_DISTRIBUTION: "distribution",
 }
-CATEGORY_ALIASES = {"استيراد وتصدير": "import-&-export"}
+CATEGORY_ALIASES = {AR_IMPORT_EXPORT: "import-&-export"}
 
-# Site-wide footer/chrome emails that appear on every profile — never per-business.
+_GOVERNORATE_ALIASES: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
+    ("cairo", "Cairo", "\u0627\u0644\u0642\u0627\u0647\u0631\u0629", ("cairo", "\u0627\u0644\u0642\u0627\u0647\u0631\u0629", "\u0627\u0644\u0642\u0627\u0647\u0631\u0647")),
+    ("giza", "Giza", "\u0627\u0644\u062c\u064a\u0632\u0629", ("giza", "\u0627\u0644\u062c\u064a\u0632\u0629", "\u0627\u0644\u062c\u064a\u0632\u0647")),
+    ("alexandria", "Alexandria", "\u0627\u0644\u0627\u0633\u0643\u0646\u062f\u0631\u064a\u0629", ("alexandria", "\u0627\u0644\u0627\u0633\u0643\u0646\u062f\u0631\u064a\u0629", "\u0627\u0644\u0627\u0633\u0643\u0646\u062f\u0631\u064a\u0647", "\u0627\u0633\u0643\u0646\u062f\u0631\u064a\u0629")),
+    ("qalyubia", "Qalyubia", "\u0627\u0644\u0642\u0644\u064a\u0648\u0628\u064a\u0629", ("qalyubia", "\u0627\u0644\u0642\u0644\u064a\u0648\u0628\u064a\u0629", "\u0627\u0644\u0642\u0644\u064a\u0648\u0628\u064a\u0647")),
+    ("sharqia", "Sharqia", "\u0627\u0644\u0634\u0631\u0642\u064a\u0629", ("sharqia", "\u0627\u0644\u0634\u0631\u0642\u064a\u0629", "\u0627\u0644\u0634\u0631\u0642\u064a\u0647")),
+    ("dakahlia", "Dakahlia", "\u0627\u0644\u062f\u0642\u0647\u0644\u064a\u0629", ("dakahlia", "\u0627\u0644\u062f\u0642\u0647\u0644\u064a\u0629", "\u0627\u0644\u062f\u0642\u0647\u0644\u064a\u0647", "\u0627\u0644\u0645\u0646\u0635\u0648\u0631\u0629")),
+    ("beheira", "Beheira", "\u0627\u0644\u0628\u062d\u064a\u0631\u0629", ("beheira", "\u0627\u0644\u0628\u062d\u064a\u0631\u0629", "\u0627\u0644\u0628\u062d\u064a\u0631\u0647")),
+    ("monufia", "Monufia", "\u0627\u0644\u0645\u0646\u0648\u0641\u064a\u0629", ("monufia", "menofia", "\u0627\u0644\u0645\u0646\u0648\u0641\u064a\u0629", "\u0627\u0644\u0645\u0646\u0648\u0641\u064a\u0647")),
+    ("gharbia", "Gharbia", "\u0627\u0644\u063a\u0631\u0628\u064a\u0629", ("gharbia", "\u0627\u0644\u063a\u0631\u0628\u064a\u0629", "\u0627\u0644\u063a\u0631\u0628\u064a\u0647")),
+    ("kafr-el-sheikh", "Kafr El Sheikh", "\u0643\u0641\u0631 \u0627\u0644\u0634\u064a\u062e", ("kafr el sheikh", "kafr-el-sheikh", "\u0643\u0641\u0631 \u0627\u0644\u0634\u064a\u062e")),
+    ("port-said", "Port Said", "\u0628\u0648\u0631\u0633\u0639\u064a\u062f", ("port said", "port-said", "\u0628\u0648\u0631\u0633\u0639\u064a\u062f", "\u0628\u0648\u0631 \u0633\u0639\u064a\u062f")),
+    ("ismailia", "Ismailia", "\u0627\u0644\u0627\u0633\u0645\u0627\u0639\u064a\u0644\u064a\u0629", ("ismailia", "\u0627\u0644\u0627\u0633\u0645\u0627\u0639\u064a\u0644\u064a\u0629", "\u0627\u0644\u0627\u0633\u0645\u0627\u0639\u064a\u0644\u064a\u0647")),
+    ("suez", "Suez", "\u0627\u0644\u0633\u0648\u064a\u0633", ("suez", "\u0627\u0644\u0633\u0648\u064a\u0633")),
+    ("faiyum", "Faiyum", "\u0627\u0644\u0641\u064a\u0648\u0645", ("faiyum", "fayoum", "\u0627\u0644\u0641\u064a\u0648\u0645")),
+    ("beni-suef", "Beni Suef", "\u0628\u0646\u0649 \u0633\u0648\u064a\u0641", ("beni suef", "beni-suef", "\u0628\u0646\u0649 \u0633\u0648\u064a\u0641", "\u0628\u0646\u064a \u0633\u0648\u064a\u0641")),
+    ("minya", "Minya", "\u0627\u0644\u0645\u0646\u064a\u0627", ("minya", "\u0627\u0644\u0645\u0646\u064a\u0627")),
+    ("asyut", "Asyut", "\u0627\u0633\u064a\u0648\u0637", ("asyut", "\u0627\u0633\u064a\u0648\u0637")),
+    ("sohag", "Sohag", "\u0633\u0648\u0647\u0627\u062c", ("sohag", "\u0633\u0648\u0647\u0627\u062c")),
+    ("qena", "Qena", "\u0642\u0646\u0627", ("qena", "\u0642\u0646\u0627")),
+    ("aswan", "Aswan", "\u0627\u0633\u0648\u0627\u0646", ("aswan", "\u0627\u0633\u0648\u0627\u0646")),
+    ("luxor", "Luxor", "\u0627\u0644\u0627\u0642\u0635\u0631", ("luxor", "\u0627\u0644\u0627\u0642\u0635\u0631")),
+    ("red-sea", "Red Sea", "\u0627\u0644\u0628\u062d\u0631 \u0627\u0644\u0627\u062d\u0645\u0631", ("red sea", "red-sea", "\u0627\u0644\u0628\u062d\u0631 \u0627\u0644\u0627\u062d\u0645\u0631")),
+    ("north-sinai", "North Sinai", "\u0634\u0645\u0627\u0644 \u0633\u064a\u0646\u0627\u0621", ("north sinai", "north-sinai", "\u0634\u0645\u0627\u0644 \u0633\u064a\u0646\u0627\u0621")),
+    ("south-sinai", "South Sinai", "\u062c\u0646\u0648\u0628 \u0633\u064a\u0646\u0627\u0621", ("south sinai", "south-sinai", "\u062c\u0646\u0648\u0628 \u0633\u064a\u0646\u0627\u0621")),
+    ("matruh", "Matruh", "\u0645\u0637\u0631\u0648\u062d", ("matruh", "\u0645\u0637\u0631\u0648\u062d")),
+    ("new-valley", "New Valley", "\u0627\u0644\u0648\u0627\u062f\u0649 \u0627\u0644\u062c\u062f\u064a\u062f", ("new valley", "new-valley", "\u0627\u0644\u0648\u0627\u062f\u0649 \u0627\u0644\u062c\u062f\u064a\u062f", "\u0627\u0644\u0648\u0627\u062f\u064a \u0627\u0644\u062c\u062f\u064a\u062f")),
+    ("damietta", "Damietta", "\u062f\u0645\u064a\u0627\u0637", ("damietta", "\u062f\u0645\u064a\u0627\u0637")),
+)
+
+# Site-wide footer/chrome emails that appear on every profile - never per-business.
 _EMAIL_DENYLIST = {"customercare@yellow.com.eg"}
 
 _PHONE_RETRIES = 3
@@ -126,6 +162,7 @@ def _facet_from_href(href: str, name: str) -> Facet | None:
             if marker in path:
                 slug = path.split(marker, 1)[1].split("/")[-1]
                 if slug:
+                    slug = unquote(slug)
                     if language == "ar":
                         return Facet(type=facet_type, slug=slug, name_ar=name)
                     return Facet(type=facet_type, slug=slug, name=name)
@@ -196,6 +233,34 @@ def _contains_arabic(text: str) -> bool:
     return any('\u0600' <= char <= '\u06FF' for char in text)
 
 
+def _normalize_location_text(text: str) -> str:
+    return (
+        (text or "")
+        .lower()
+        .replace("\u0623", "\u0627")
+        .replace("\u0625", "\u0627")
+        .replace("\u0622", "\u0627")
+        .replace("\u0649", "\u064a")
+    )
+
+
+def infer_governorate(text: str) -> tuple[str, str, str]:
+    """Infer (slug, English name, Arabic name) from address/governorate text."""
+    normalized = _normalize_location_text(text)
+    best: tuple[int, int, str, str, str] | None = None
+    for slug, name, name_ar, aliases in _GOVERNORATE_ALIASES:
+        for alias in aliases:
+            match_at = normalized.rfind(_normalize_location_text(alias))
+            if match_at < 0:
+                continue
+            score = (match_at, len(alias), slug, name, name_ar)
+            if best is None or score[:2] > best[:2]:
+                best = score
+    if best is None:
+        return "", "", ""
+    return best[2], best[3], best[4]
+
+
 def parse_detail(html: str, url: str) -> ScrapeResult:
     tree = HTMLParser(html)
     seen: set[str] = set(_EMAIL_DENYLIST)
@@ -222,12 +287,25 @@ def parse_detail(html: str, url: str) -> ScrapeResult:
     category = _first_text(tree, _CATEGORY_SELECTORS)
     governorate = _first_text(tree, _GOVERNORATE_SELECTORS)
     address = _first_text(tree, _ADDRESS_SELECTORS)
+    _, inferred_governorate, inferred_governorate_ar = infer_governorate(
+        " | ".join(part for part in (governorate, address) if part)
+    )
 
     is_ar = "/ar/" in url
     # Validate that Arabic fields actually contain Arabic text
     has_arabic_name = _contains_arabic(name)
     has_arabic_category = _contains_arabic(category)
+    has_arabic_governorate = _contains_arabic(governorate)
     has_arabic_address = _contains_arabic(address)
+    governorate_ar = ""
+    if is_ar:
+        governorate_ar = (
+            inferred_governorate_ar
+            or (governorate if has_arabic_governorate else "")
+        )
+    governorate_name = inferred_governorate or (
+        "" if has_arabic_governorate else governorate
+    )
     
     return ScrapeResult(
         url=url,
@@ -235,8 +313,8 @@ def parse_detail(html: str, url: str) -> ScrapeResult:
         business_name_ar=name if (is_ar and has_arabic_name) else "",
         category=category,
         category_ar=category if (is_ar and has_arabic_category) else "",
-        governorate=governorate,
-        governorate_ar=governorate if is_ar else "",
+        governorate=governorate_name,
+        governorate_ar=governorate_ar,
         phone=phone,
         emails=emails,
         website=website,
@@ -253,11 +331,16 @@ def arabic_profile_url(url: str) -> str:
 
 
 def merge_arabic_detail(result: ScrapeResult, arabic_html: str) -> ScrapeResult:
+    """Merge Arabic details with validation to ensure Arabic text is actually Arabic."""
     arabic = parse_detail(arabic_html, arabic_profile_url(result.url))
-    result.business_name_ar = arabic.business_name
-    result.category_ar = arabic.category
-    result.governorate_ar = arabic.governorate
-    result.address_ar = arabic.address
+    # Only store Arabic fields if they actually contain Arabic characters
+    result.business_name_ar = arabic.business_name if _contains_arabic(arabic.business_name) else ""
+    result.category_ar = arabic.category if _contains_arabic(arabic.category) else ""
+    result.governorate = arabic.governorate or result.governorate
+    result.governorate_ar = arabic.governorate_ar or (
+        arabic.governorate if _contains_arabic(arabic.governorate) else ""
+    )
+    result.address_ar = arabic.address if _contains_arabic(arabic.address) else ""
     return result
 
 
@@ -362,7 +445,9 @@ def scrape_target(
     proxy_pool: "ProxyPool | None" = None,
     max_pages: int = 50,
     consecutive_empty_halt: int = 5,
+    consecutive_no_new_halt: int = 5,
     progress_callback: Callable[[int, int], None] | None = None,
+    start_page: int = 1,
 ) -> int:
     from scraper.pipeline import BlockedError
 
@@ -370,23 +455,33 @@ def scrape_target(
         raise ValueError(f"Unsupported target_type: {target_type}")
     if max_pages <= 0:
         raise ValueError(f"max_pages must be positive, got {max_pages}")
+    if start_page <= 0:
+        raise ValueError(f"start_page must be positive, got {start_page}")
+    if start_page > max_pages:
+        return 0
     if consecutive_empty_halt <= 0:
         raise ValueError(f"consecutive_empty_halt must be positive, got {consecutive_empty_halt}")
+    if consecutive_no_new_halt <= 0:
+        raise ValueError(
+            f"consecutive_no_new_halt must be positive, got {consecutive_no_new_halt}"
+        )
 
     total_written = 0
     consecutive_empty = 0
+    consecutive_no_new = 0
     referer = f"{BASE_URL}/en"
 
-    for page_num in range(1, max_pages + 1):
+    for page_num in range(start_page, max_pages + 1):
+        rows_before_page = total_written
+        # Only fetch Arabic pages - English pages are redundant since we fetch Arabic detail pages anyway
         page_urls = [
             build_target_url(
                 target_type,
                 slug,
                 page=page_num,
                 city_slug=city_slug,
-                language=language,
+                language="ar",  # Only Arabic to avoid duplicate fetches
             )
-            for language in ("en", "ar")
         ]
         listing_by_url: dict[str, ListingCard] = {}
         fetched_any_ok = False
@@ -460,18 +555,20 @@ def scrape_target(
             if callable(has_url) and has_url(listing_url):
                 write_facets = getattr(csv_writer, "write_facets", None)
                 saved_facets = write_facets(listing_url, facets) if callable(write_facets) else 0
-                updated_arabic = _backfill_existing_arabic_detail(
-                    listing_url,
-                    pipeline,
-                    csv_writer,
-                )
-                log.info(
-                    "listing_skip_existing",
-                    url=listing_url,
-                    saved_facets=saved_facets,
-                    updated_arabic=updated_arabic,
-                )
-                continue
+                if not getattr(csv_writer, "refresh_existing", False):
+                    updated_arabic = _backfill_existing_arabic_detail(
+                        listing_url,
+                        pipeline,
+                        csv_writer,
+                    )
+                    log.info(
+                        "listing_skip_existing",
+                        url=listing_url,
+                        saved_facets=saved_facets,
+                        updated_arabic=updated_arabic,
+                    )
+                    continue
+                log.info("listing_refresh_existing", url=listing_url, saved_facets=saved_facets)
             result = None
             detail_resp = None
             max_attempts = max(_PHONE_RETRIES, _CONTACT_RETRIES) + 1
@@ -509,6 +606,16 @@ def scrape_target(
                         log.warning("arabic_detail_unavailable", url=arabic_url)
                 result.source_tier = detail_resp.tier
                 result.facets = facets
+                result.target_type = target_type
+                result.target_slug = slug
+                result.target_name = SEARCH_ALIASES.get(slug, CATEGORY_ALIASES.get(slug, slug))
+                result.target_name_ar = (
+                    slug
+                    if slug in CATEGORY_ALIASES
+                    or (slug in SEARCH_ALIASES and any(ord(char) > 127 for char in slug))
+                    else ""
+                )
+                result.city_slug = city_slug or ""
                 biz_id = _extract_business_id(listing_url)
                 if biz_id:
                     result.phone = _fetch_phones(pipeline, biz_id, referer=listing_url)
@@ -543,7 +650,21 @@ def scrape_target(
             )
 
         rate_limiter.wait()
+        if total_written == rows_before_page:
+            consecutive_no_new += 1
+        else:
+            consecutive_no_new = 0
         if progress_callback:
             progress_callback(page_num, total_written)
+        if consecutive_no_new >= consecutive_no_new_halt:
+            log.info(
+                "no_new_rows_halt",
+                consecutive=consecutive_no_new,
+                page=page_num,
+                target_type=target_type,
+                target=slug,
+                city=city_slug or "",
+            )
+            break
 
     return total_written

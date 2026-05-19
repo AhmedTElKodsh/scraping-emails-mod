@@ -9,6 +9,8 @@ from scraper.postgres_db import get_connection, init_db
 class PostgresWriter:
     """Writes scrape results to Postgres with source URL deduplication."""
 
+    refresh_existing = True
+
     def __init__(self, database_url: str) -> None:
         self._conn = get_connection(database_url)
         init_db(self._conn)
@@ -39,7 +41,25 @@ class PostgresWriter:
                  phone, email, website, facebook_url, address,
                  address_ar, raw_html_hash, source_tier, scraped_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (source_url) DO NOTHING""",
+                ON CONFLICT (source_url) DO UPDATE SET
+                    business_name=COALESCE(NULLIF(EXCLUDED.business_name, ''), businesses.business_name),
+                    business_name_ar=COALESCE(NULLIF(EXCLUDED.business_name_ar, ''), businesses.business_name_ar),
+                    category_slug=COALESCE(NULLIF(EXCLUDED.category_slug, ''), businesses.category_slug),
+                    category_ar=COALESCE(NULLIF(EXCLUDED.category_ar, ''), businesses.category_ar),
+                    city_slug=COALESCE(NULLIF(EXCLUDED.city_slug, ''), businesses.city_slug),
+                    governorate_ar=COALESCE(NULLIF(EXCLUDED.governorate_ar, ''), businesses.governorate_ar),
+                    phone=COALESCE(NULLIF(EXCLUDED.phone, ''), businesses.phone),
+                    email=COALESCE(NULLIF(EXCLUDED.email, ''), businesses.email),
+                    website=COALESCE(NULLIF(EXCLUDED.website, ''), businesses.website),
+                    facebook_url=COALESCE(NULLIF(EXCLUDED.facebook_url, ''), businesses.facebook_url),
+                    address=COALESCE(NULLIF(EXCLUDED.address, ''), businesses.address),
+                    address_ar=COALESCE(NULLIF(EXCLUDED.address_ar, ''), businesses.address_ar),
+                    raw_html_hash=COALESCE(NULLIF(EXCLUDED.raw_html_hash, ''), businesses.raw_html_hash),
+                    source_tier=CASE
+                        WHEN EXCLUDED.source_tier != 0 THEN EXCLUDED.source_tier
+                        ELSE businesses.source_tier
+                    END,
+                    scraped_at=EXCLUDED.scraped_at""",
                 (
                     result.url,
                     result.business_name,
@@ -92,6 +112,7 @@ class PostgresWriter:
                 """UPDATE businesses
                 SET business_name_ar=COALESCE(NULLIF(%s, ''), business_name_ar),
                     category_ar=COALESCE(NULLIF(%s, ''), category_ar),
+                    city_slug=COALESCE(NULLIF(%s, ''), city_slug),
                     governorate_ar=COALESCE(NULLIF(%s, ''), governorate_ar),
                     address_ar=COALESCE(NULLIF(%s, ''), address_ar)
                 WHERE source_url=%s""",
@@ -99,6 +120,7 @@ class PostgresWriter:
                     arabic.business_name,
                     arabic.category,
                     arabic.governorate,
+                    arabic.governorate_ar or arabic.governorate,
                     arabic.address,
                     source_url,
                 ),

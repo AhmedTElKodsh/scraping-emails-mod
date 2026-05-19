@@ -180,6 +180,40 @@ def test_parse_detail_extracts_arabic_fields() -> None:
     assert result.address_ar == "١٢ شارع التحرير"
 
 
+def test_parse_detail_infers_governorate_from_arabic_address() -> None:
+    from scraper.sites.yellowpages_eg import parse_detail
+
+    html = """
+        <h1 class="companyName">\u0627\u0644 \u0645\u0627\u0631\u064a\u0646</h1>
+        <div class="company-address">
+            \u0634 \u0627\u0644\u0641\u0631\u0627\u0639\u0646\u0629, \u0628\u0627\u0628 \u0634\u0631\u0642, \u0627\u0644\u0627\u0633\u0643\u0646\u062f\u0631\u064a\u0629
+        </div>
+    """
+
+    result = parse_detail(html, "https://yellowpages.com.eg/ar/profile/all-marine/712044")
+
+    assert result.business_name_ar == "\u0627\u0644 \u0645\u0627\u0631\u064a\u0646"
+    assert result.address_ar.strip().endswith("\u0627\u0644\u0627\u0633\u0643\u0646\u062f\u0631\u064a\u0629")
+    assert result.governorate == "Alexandria"
+    assert result.governorate_ar == "\u0627\u0644\u0627\u0633\u0643\u0646\u062f\u0631\u064a\u0629"
+
+
+def test_parse_detail_prefers_last_governorate_match_in_address() -> None:
+    from scraper.sites.yellowpages_eg import parse_detail
+
+    html = """
+        <h1 class="companyName">\u0641\u064a\u0648\u062a\u0634\u0631</h1>
+        <div class="company-address">
+            \u0637\u0631\u064a\u0642 \u062f\u0645\u064a\u0627\u0637 \u0627\u0644\u0645\u0646\u0635\u0648\u0631\u0629, \u0643\u0641\u0631 \u0633\u0639\u062f, \u062f\u0645\u064a\u0627\u0637
+        </div>
+    """
+
+    result = parse_detail(html, "https://yellowpages.com.eg/ar/profile/future/1")
+
+    assert result.governorate == "Damietta"
+    assert result.governorate_ar == "\u062f\u0645\u064a\u0627\u0637"
+
+
 def test_parse_detail_missing_field_no_crash() -> None:
     from scraper.sites.yellowpages_eg import parse_detail
 
@@ -231,6 +265,57 @@ def test_scrape_target_reports_progress_for_empty_pages() -> None:
         rate_limiter=NoopRateLimiter(),  # type: ignore[arg-type]
         max_pages=2,
         consecutive_empty_halt=2,
+        progress_callback=lambda pages, written: progress.append((pages, written)),
+    )
+
+    assert rows == 0
+    assert progress == [(1, 0), (2, 0)]
+
+
+def test_scrape_target_halts_after_pages_with_no_new_rows() -> None:
+    from scraper.http_client import Response
+    from scraper.sites.yellowpages_eg import scrape_target
+
+    class DuplicatePipeline:
+        def fetch(self, url, proxy=None, referer=None):  # type: ignore[no-untyped-def]
+            return Response(
+                200,
+                """
+                <div class="result-item">
+                  <a href="//yellowpages.com.eg/ar/profile/duplicate/123">Duplicate</a>
+                </div>
+                """,
+                {},
+                1,
+            )
+
+    class ExistingWriter:
+        refresh_existing = False
+
+        def has_url(self, source_url: str) -> bool:
+            return True
+
+        def write_facets(self, source_url, facets):  # type: ignore[no-untyped-def]
+            return 0
+
+        def write(self, result):  # type: ignore[no-untyped-def]
+            return 0
+
+    class NoopRateLimiter:
+        def wait(self) -> None:
+            pass
+
+    progress: list[tuple[int, int]] = []
+
+    rows = scrape_target(
+        target_type="keyword",
+        slug="import",
+        city_slug=None,
+        pipeline=DuplicatePipeline(),  # type: ignore[arg-type]
+        csv_writer=ExistingWriter(),  # type: ignore[arg-type]
+        rate_limiter=NoopRateLimiter(),  # type: ignore[arg-type]
+        max_pages=5,
+        consecutive_no_new_halt=2,
         progress_callback=lambda pages, written: progress.append((pages, written)),
     )
 

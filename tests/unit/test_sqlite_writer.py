@@ -15,15 +15,28 @@ def test_write_returns_1_on_insert(tmp_path: Path) -> None:
     writer.close()
 
 
-def test_duplicate_source_url_returns_0_not_raises(tmp_path: Path) -> None:
+def test_duplicate_source_url_upserts_without_duplicate_row(tmp_path: Path) -> None:
+    from scraper.db import get_connection
     from scraper.sqlite_writer import SQLiteWriter
 
     db_path = tmp_path / "test.sqlite"
     writer = SQLiteWriter(db_path)
-    result = ScrapeResult(url="http://example.com/1", business_name="Test Biz")
-    writer.write(result)
-    assert writer.write(result) == 0
+    writer.write(ScrapeResult(url="http://example.com/1", business_name="Test Biz"))
+    assert writer.write(
+        ScrapeResult(
+            url="http://example.com/1",
+            business_name="Test Biz Updated",
+            phone="0100-000-000",
+        )
+    ) == 1
     writer.close()
+
+    conn = get_connection(db_path)
+    rows = conn.execute(
+        "SELECT business_name, phone FROM businesses WHERE source_url='http://example.com/1'",
+    ).fetchall()
+    assert [tuple(row) for row in rows] == [("Test Biz Updated", "0100-000-000")]
+    conn.close()
 
 
 def test_dedup_persists_across_writer_instances(tmp_path: Path) -> None:
@@ -36,7 +49,7 @@ def test_dedup_persists_across_writer_instances(tmp_path: Path) -> None:
     writer1.close()
 
     writer2 = SQLiteWriter(db_path)
-    assert writer2.write(r1) == 0
+    assert writer2.write(r1) == 1
     writer2.close()
 
 

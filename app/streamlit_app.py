@@ -32,7 +32,6 @@ from app.data_access import (
     load_facet_options,
     load_job_summary,
     load_matching_jobs,
-    search_facet_suggestions,
 )
 from scraper.config import Settings
 
@@ -179,6 +178,7 @@ def _start_crawl_thread(
                     db_path=db_path,
                     max_pages=max_pages,
                     headless=False,
+                    resume=True,
                     target_types=target_types,
                     target_slugs_by_type=target_slugs_by_type,
                     cities=cities,
@@ -217,17 +217,28 @@ if st.session_state.get("starter_taxonomy_loaded"):
     st.sidebar.success("Loaded starter taxonomy for this fresh deployment.")
 
 filter_options = load_crawl_target_options(DB_PATH)
+category_options = _option_labels(filter_options["categories"])
 brand_options = _option_labels(filter_options["brands"])
 keyword_options = _option_labels(filter_options["keywords"])
 city_options = _option_labels(filter_options["cities"])
 
-# Only show the allowed merged keywords
+# Only show the allowed import/export/factory/distribution scope.
 ALLOWED_KEYWORDS = {"استيراد", "تصدير", "استيراد وتصدير", "مصنع", "توزيع"}
+ALLOWED_CATEGORIES = {"import-&-export", "factory-equipment-and-supplies"}
+restricted_category_options = {
+    label: slug for label, slug in category_options.items() if slug in ALLOWED_CATEGORIES
+}
 restricted_keyword_options = {
     label: slug for label, slug in keyword_options.items() if slug in ALLOWED_KEYWORDS
 }
 
-selected_categories: list[str] = []  # Categories hidden/removed for now
+selected_categories: list[str] = []
+if restricted_category_options:
+    selected_categories = _sidebar_multiselect(
+        "Categories",
+        list(restricted_category_options.keys()),
+        key="selected_categories",
+    )
 
 selected_brands: list[str] = []
 if brand_options:
@@ -285,7 +296,7 @@ if district_options:
 search_query = ""
 
 filters = {
-    "category": selected_categories,  # Always empty list now
+    "category": _selected_slugs(restricted_category_options, selected_categories),
     "brand": _selected_slugs(brand_options, selected_brands),
     "keyword": _selected_slugs(restricted_keyword_options, selected_keywords),
     "city": selected_city_slugs,
@@ -294,19 +305,19 @@ filters = {
 }
 
 _EXPANSION_MAP = {
-    "مصنع": "factory",
-    "استيراد": "import",
-    "تصدير": "export",
-    "استيراد وتصدير": "import-&-export",
-    "توزيع": "distribution",
+    "مصنع": ["factory", "factories", "factory-equipment-and-supplies"],
+    "استيراد": ["import"],
+    "تصدير": ["export"],
+    "استيراد وتصدير": ["import-&-export", "import-export", "import export", "استيراد-وتصدير"],
+    "توزيع": ["distribution"],
 }
 
 
 def _expand_keywords(slugs: set[str]) -> set[str]:
     result = set(slugs)
-    for arabic, english in _EXPANSION_MAP.items():
+    for arabic, english_slugs in _EXPANSION_MAP.items():
         if arabic in result:
-            result.add(english)
+            result.update(english_slugs)
     return result
 
 
@@ -323,7 +334,7 @@ target_slugs_by_type = {
 }
 default_expanded_keywords = _expand_keywords(set(restricted_keyword_options.values()))
 default_target_slugs_by_type = {
-    "category": [],
+    "category": ["import-&-export", "factory-equipment-and-supplies"],
     "keyword": list(default_expanded_keywords),
 }
 crawl_plan = build_crawl_plan(
@@ -407,11 +418,11 @@ if st.sidebar.button(crawl_button_label, disabled=active_crawl, key="run_crawl_b
     crawl_started_this_run = started
     if started and crawl_plan.is_scoped:
         st.session_state["crawl_status_message"] = (
-            "Scoped crawl started. Existing saved businesses will be skipped."
+            "Scoped crawl resumed. Completed jobs are skipped and interrupted jobs continue from saved progress."
         )
     elif started:
         st.session_state["crawl_status_message"] = (
-            "Full dataset crawl started. Existing saved businesses will be skipped."
+            "Full dataset crawl resumed. Completed jobs are skipped and interrupted jobs continue from saved progress."
         )
     else:
         st.session_state["crawl_status_message"] = "A crawl is already running."
@@ -462,7 +473,7 @@ def _render_live_crawl_status() -> None:
             f"{live_progress['failed_jobs']:,} failed"
         )
         st.caption(
-            "Rows count newly saved unique businesses; existing matches are skipped."
+            "Rows count newly saved unique businesses; completed jobs are skipped on resume."
         )
         if live_active:
             st.info(
@@ -551,6 +562,12 @@ def _render_data_table() -> None:
             "email",
             "address_ar",
             "category_ar",
+            "governorate",
+            "governorate_ar",
+            "city_slug",
+            "facet_categories",
+            "facet_keywords",
+            "facet_cities",
             "source_url",
             "matched_facets",
             "scraped_at",
@@ -580,6 +597,12 @@ def _render_data_table() -> None:
             "business_name_ar": "اسم الشركة (Business Name)",
             "address_ar": "العنوان (Address)",
             "category_ar": "الفئة (Category)",
+            "governorate": "Governorate",
+            "governorate_ar": "المحافظة (Governorate)",
+            "city_slug": "City Slug",
+            "facet_categories": "Category Slugs",
+            "facet_keywords": "Keyword Slugs",
+            "facet_cities": "City Facets",
             "phone": "الهاتف (Phone)",
             "email": "البريد الإلكتروني (Email)",
             "source_url": "رابط المصدر (Source URL)",

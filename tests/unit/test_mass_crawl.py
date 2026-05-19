@@ -14,7 +14,7 @@ def test_done_job_skipped() -> None:
     assert job["status"] == "done"
 
 
-def test_zero_row_done_arabic_role_jobs_are_retryable() -> None:
+def test_done_jobs_are_refreshable_on_explicit_runs() -> None:
     from scraper.mass_crawl import _should_skip_done_job
 
     assert _should_skip_done_job(
@@ -26,12 +26,12 @@ def test_zero_row_done_arabic_role_jobs_are_retryable() -> None:
         "category",
         "استيراد",
         {"status": "done", "rows_written": 4},
-    ) is True
+    ) is False
     assert _should_skip_done_job(
         "category",
         "restaurants",
         {"status": "done", "rows_written": 0},
-    ) is True
+    ) is False
 
 
 def test_failed_job_reset_to_pending_then_runs() -> None:
@@ -153,8 +153,8 @@ def test_load_targets_reads_requested_taxonomy_tables(tmp_path) -> None:  # type
 
     assert ("category", "air-conditioning") not in targets
     assert ("category", "استيراد") not in targets
-    assert ("category", "استيراد وتصدير") in targets
-    assert ("category", "مصنع") in targets
+    assert ("category", "import-&-export") not in targets
+    assert ("category", "factory-equipment-and-supplies") not in targets
     assert ("category", "تصدير") not in targets
     assert ("brand", "carrier") not in targets
     assert ("keyword", "Air-Condition") not in targets
@@ -179,6 +179,21 @@ def test_load_targets_can_limit_to_selected_slugs(tmp_path) -> None:  # type: ig
         ["category", "brand"],
         {"category": ["atms"], "brand": ["2b"]},
     ) == [("category", "atms"), ("brand", "2b")]
+    conn.close()
+
+
+def test_load_targets_honors_selected_slugs_even_when_not_seeded(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from scraper.db import get_connection, init_db
+    from scraper.mass_crawl import _load_targets
+
+    conn = get_connection(tmp_path / "test.sqlite")
+    init_db(conn)
+
+    assert _load_targets(
+        conn,
+        ["category"],
+        {"category": ["factory-equipment-and-supplies"]},
+    ) == [("category", "factory-equipment-and-supplies")]
     conn.close()
 
 
@@ -213,3 +228,62 @@ def test_run_mass_crawl_headless_false_omits_browser_tier(
         target_types=["category"],
         city_slugs=["cairo"],
     ) == 0
+
+
+def test_run_mass_crawl_resume_skips_done_and_continues_failed_page(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # type: ignore[no-untyped-def]
+    from scraper.db import get_connection, init_db
+    from scraper.mass_crawl import run_mass_crawl
+
+    db_path = tmp_path / "test.sqlite"
+    conn = get_connection(db_path)
+    init_db(conn)
+    conn.execute("INSERT INTO categories (slug, name) VALUES ('done-cat', 'Done')")
+    conn.execute("INSERT INTO categories (slug, name) VALUES ('failed-cat', 'Failed')")
+    conn.execute("INSERT INTO locations (slug, name, type) VALUES ('cairo', 'Cairo', 'city')")
+    conn.execute(
+        """INSERT INTO scrape_jobs
+        (target_type, target_slug, category_slug, city_slug, status, pages_scraped, rows_written)
+        VALUES ('category', 'done-cat', 'done-cat', 'cairo', 'done', 20, 7)"""
+    )
+    conn.execute(
+        """INSERT INTO scrape_jobs
+        (target_type, target_slug, category_slug, city_slug, status, pages_scraped, rows_written)
+        VALUES ('category', 'failed-cat', 'failed-cat', 'cairo', 'failed', 3, 11)"""
+    )
+    conn.commit()
+    conn.close()
+
+    calls: list[dict[str, object]] = []
+
+    def fake_scrape_target(**kwargs):  # type: ignore[no-untyped-def]
+        calls.append(kwargs)
+        kwargs["progress_callback"](4, 2)
+        return 2
+
+    monkeypatch.setattr("scraper.sites.yellowpages_eg.scrape_target", fake_scrape_target)
+
+    assert run_mass_crawl(
+        db_path=str(db_path),
+        max_pages=5,
+        headless=False,
+        target_types=["category"],
+        target_slugs_by_type={"category": ["done-cat", "failed-cat"]},
+        city_slugs=["cairo"],
+        resume=True,
+    ) == 2
+
+    assert [call["slug"] for call in calls] == ["failed-cat"]
+    assert calls[0]["start_page"] == 4
+
+    conn = get_connection(db_path)
+    rows = conn.execute(
+        "SELECT target_slug, status, pages_scraped, rows_written FROM scrape_jobs ORDER BY target_slug"
+    ).fetchall()
+    assert [tuple(row) for row in rows] == [
+        ("done-cat", "done", 20, 7),
+        ("failed-cat", "done", 4, 13),
+    ]
+    conn.close()
