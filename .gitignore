@@ -17,7 +17,11 @@ output/
 # Runtime data and local tool state
 data/*.sqlite*
 data/*.log
+data/*.csv
 *.png
+/0
+/pnpm
+/FIXES_APPLIED.md
 .agent/
 .agents/
 .bob/
